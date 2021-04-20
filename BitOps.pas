@@ -7,13 +7,16 @@
 -------------------------------------------------------------------------------}
 {===============================================================================
 
-  BitOps - Binary operations
+  BitOps
 
-  Version 1.8 (2020-05-16)
+    Set of functions providing some of the not-so-common bit-manipulating
+    operations and more.
 
-  Last change 2020-08-02
+  Version 1.10 (2021-03-22)
 
-  ©2014-2020 František Milt
+  Last change 2021-03-22
+
+  ©2014-2021 František Milt
 
   Contacts:
     František Milt: frantisek.milt@gmail.com
@@ -38,25 +41,24 @@
 
 ===============================================================================}
 unit BitOps;
-
 {
   BitOps_PurePascal
 
   If you want to compile this unit without ASM, don't want to or cannot define
   PurePascal for the entire project and at the same time you don't want to or
   cannot make changes to this unit, define this symbol for the entire project
-  and this unit will be compiled in PurePascal mode.
+  and only this unit will be compiled in PurePascal mode.
 }
 {$IFDEF BitOps_PurePascal}
   {$DEFINE PurePascal}
 {$ENDIF}
 
 {$IF defined(CPU64) or defined(CPU64BITS)}
-  {$DEFINE 64bit}
+  {$DEFINE CPU64bit}
 {$ELSEIF defined(CPU16)}
   {$MESSAGE FATAL '16bit CPU not supported'}
 {$ELSE}
-  {$DEFINE 32bit}
+  {$DEFINE CPU32bit}
 {$IFEND}
 
 {$IF defined(CPUX86_64) or defined(CPUX64)}
@@ -93,11 +95,14 @@ unit BitOps;
   {$DEFINE OverflowChecks}
 {$ENDIF}
 
+//------------------------------------------------------------------------------
 {
   UseLookupTable
 
   When defined, PopCount functions will, in their PurePascal version, use
   lookup table instead of testing each bit in a passed value.
+
+  Defined by default.
 }
 {$DEFINE UseLookupTable}
 
@@ -120,8 +125,19 @@ unit BitOps;
       [32b] = 32bit ASM variant of the function
       [p64] = function accepting 64bit values
       (ins) = ins is a specific used instruction from the extension set
+
+  Defined by default.
 }
 {$DEFINE AllowASMExtensions}
+
+//------------------------------------------------------------------------------
+
+// do not touch following...
+{$IF not Defined(PurePascal) and Defined(AllowASMExtensions)}
+  {$DEFINE ASM_Extensions}
+{$ELSE}
+  {$UNDEF ASM_Extensions}
+{$IFEND}
 
 interface
 
@@ -132,7 +148,7 @@ uses
 type
   EBOException = class(Exception);
 
-  EBOUnknownFunction  = class(EBOException);
+  EBOUnknownFunction = class(EBOException);
 
   EBOConversionError  = class(EBOException);
   EBOInvalidCharacter = class(EBOConversionError);
@@ -164,26 +180,26 @@ const
 
 //------------------------------------------------------------------------------
 
-Function NumberToBitStr(Number: UInt8; BitStringFormat: TBitStringFormat): String; overload;{$IF Defined(CanInline) and Defined(FPC)} inline; {$IFEND}
-Function NumberToBitStr(Number: UInt16; BitStringFormat: TBitStringFormat): String; overload;{$IF Defined(CanInline) and Defined(FPC)} inline; {$IFEND}
-Function NumberToBitStr(Number: UInt32; BitStringFormat: TBitStringFormat): String; overload;{$IF Defined(CanInline) and Defined(FPC)} inline; {$IFEND}
-Function NumberToBitStr(Number: UInt64; BitStringFormat: TBitStringFormat): String; overload;{$IF Defined(CanInline) and Defined(FPC)} inline; {$IFEND}
+Function NumberToBitStr(Number: UInt8; BitStringFormat: TBitStringFormat): String; overload;{$IF Defined(CanInline) and Defined(FPC)} inline;{$IFEND}
+Function NumberToBitStr(Number: UInt16; BitStringFormat: TBitStringFormat): String; overload;{$IF Defined(CanInline) and Defined(FPC)} inline;{$IFEND}
+Function NumberToBitStr(Number: UInt32; BitStringFormat: TBitStringFormat): String; overload;{$IF Defined(CanInline) and Defined(FPC)} inline;{$IFEND}
+Function NumberToBitStr(Number: UInt64; BitStringFormat: TBitStringFormat): String; overload;{$IF Defined(CanInline) and Defined(FPC)} inline;{$IFEND}
 
 Function NumberToBitStr(Number: UInt8; Split: TBitStringSplit): String; overload;
 Function NumberToBitStr(Number: UInt16; Split: TBitStringSplit): String; overload;
 Function NumberToBitStr(Number: UInt32; Split: TBitStringSplit): String; overload;
 Function NumberToBitStr(Number: UInt64; Split: TBitStringSplit): String; overload;
 
-Function NumberToBitStr(Number: UInt8): String; overload;{$IF Defined(CanInline) and Defined(FPC)} inline; {$IFEND}
-Function NumberToBitStr(Number: UInt16): String; overload;{$IF Defined(CanInline) and Defined(FPC)} inline; {$IFEND}
-Function NumberToBitStr(Number: UInt32): String; overload;{$IF Defined(CanInline) and Defined(FPC)} inline; {$IFEND}
-Function NumberToBitStr(Number: UInt64): String; overload;{$IF Defined(CanInline) and Defined(FPC)} inline; {$IFEND}
+Function NumberToBitStr(Number: UInt8): String; overload;{$IF Defined(CanInline) and Defined(FPC)} inline;{$IFEND}
+Function NumberToBitStr(Number: UInt16): String; overload;{$IF Defined(CanInline) and Defined(FPC)} inline;{$IFEND}
+Function NumberToBitStr(Number: UInt32): String; overload;{$IF Defined(CanInline) and Defined(FPC)} inline;{$IFEND}
+Function NumberToBitStr(Number: UInt64): String; overload;{$IF Defined(CanInline) and Defined(FPC)} inline;{$IFEND}
 
 //------------------------------------------------------------------------------
 
 Function BitStrToNumber(const BitString: String; BitStringFormat: TBitStringFormat): UInt64; overload;
 Function BitStrToNumber(const BitString: String; Split: TBitStringSplit): UInt64; overload;
-Function BitStrToNumber(const BitString: String): UInt64; overload;{$IFDEF CanInline} inline; {$ENDIF}
+Function BitStrToNumber(const BitString: String): UInt64; overload;{$IFDEF CanInline} inline;{$ENDIF}
 
 //------------------------------------------------------------------------------
 
@@ -197,10 +213,10 @@ Function TryBitStrToNumber(const BitString: String; out Value: UInt16; Split: TB
 Function TryBitStrToNumber(const BitString: String; out Value: UInt32; Split: TBitStringSplit): Boolean; overload;
 Function TryBitStrToNumber(const BitString: String; out Value: UInt64; Split: TBitStringSplit): Boolean; overload;
 
-Function TryBitStrToNumber(const BitString: String; out Value: UInt8): Boolean; overload;{$IFDEF CanInline} inline; {$ENDIF}
-Function TryBitStrToNumber(const BitString: String; out Value: UInt16): Boolean; overload;{$IFDEF CanInline} inline; {$ENDIF}
-Function TryBitStrToNumber(const BitString: String; out Value: UInt32): Boolean; overload;{$IFDEF CanInline} inline; {$ENDIF}
-Function TryBitStrToNumber(const BitString: String; out Value: UInt64): Boolean; overload;{$IFDEF CanInline} inline; {$ENDIF}
+Function TryBitStrToNumber(const BitString: String; out Value: UInt8): Boolean; overload;{$IFDEF CanInline} inline;{$ENDIF}
+Function TryBitStrToNumber(const BitString: String; out Value: UInt16): Boolean; overload;{$IFDEF CanInline} inline;{$ENDIF}
+Function TryBitStrToNumber(const BitString: String; out Value: UInt32): Boolean; overload;{$IFDEF CanInline} inline;{$ENDIF}
+Function TryBitStrToNumber(const BitString: String; out Value: UInt64): Boolean; overload;{$IFDEF CanInline} inline;{$ENDIF}
 
 //------------------------------------------------------------------------------
 
@@ -214,17 +230,17 @@ Function BitStrToNumberDef(const BitString: String; Default: UInt64): UInt64; ov
 ================================================================================
 -------------------------------------------------------------------------------}
 
-Function ROL(Value: UInt8; Shift: UInt8): UInt8; overload;
-Function ROL(Value: UInt16; Shift: UInt8): UInt16; overload;
-Function ROL(Value: UInt32; Shift: UInt8): UInt32; overload;
-Function ROL(Value: UInt64; Shift: UInt8): UInt64; overload;
+Function ROL(Value: UInt8; Shift: UInt8): UInt8; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
+Function ROL(Value: UInt16; Shift: UInt8): UInt16; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
+Function ROL(Value: UInt32; Shift: UInt8): UInt32; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
+Function ROL(Value: UInt64; Shift: UInt8): UInt64; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
 
 //------------------------------------------------------------------------------
 
-procedure ROLValue(var Value: UInt8; Shift: UInt8); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure ROLValue(var Value: UInt16; Shift: UInt8); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure ROLValue(var Value: UInt32; Shift: UInt8); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure ROLValue(var Value: UInt64; Shift: UInt8); overload;{$IFDEF CanInline} inline; {$ENDIF}
+procedure ROLValue(var Value: UInt8; Shift: UInt8); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure ROLValue(var Value: UInt16; Shift: UInt8); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure ROLValue(var Value: UInt32; Shift: UInt8); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure ROLValue(var Value: UInt64; Shift: UInt8); overload;{$IFDEF CanInline} inline;{$ENDIF}
 
 {-------------------------------------------------------------------------------
 ================================================================================
@@ -232,17 +248,17 @@ procedure ROLValue(var Value: UInt64; Shift: UInt8); overload;{$IFDEF CanInline}
 ================================================================================
 -------------------------------------------------------------------------------}
 
-Function ROR(Value: UInt8; Shift: UInt8): UInt8; overload;
-Function ROR(Value: UInt16; Shift: UInt8): UInt16; overload;
-Function ROR(Value: UInt32; Shift: UInt8): UInt32; overload;
-Function ROR(Value: UInt64; Shift: UInt8): UInt64; overload;
+Function ROR(Value: UInt8; Shift: UInt8): UInt8; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
+Function ROR(Value: UInt16; Shift: UInt8): UInt16; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
+Function ROR(Value: UInt32; Shift: UInt8): UInt32; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
+Function ROR(Value: UInt64; Shift: UInt8): UInt64; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
 
 //------------------------------------------------------------------------------
 
-procedure RORValue(var Value: UInt8; Shift: UInt8); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure RORValue(var Value: UInt16; Shift: UInt8); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure RORValue(var Value: UInt32; Shift: UInt8); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure RORValue(var Value: UInt64; Shift: UInt8); overload;{$IFDEF CanInline} inline; {$ENDIF}
+procedure RORValue(var Value: UInt8; Shift: UInt8); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure RORValue(var Value: UInt16; Shift: UInt8); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure RORValue(var Value: UInt32; Shift: UInt8); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure RORValue(var Value: UInt64; Shift: UInt8); overload;{$IFDEF CanInline} inline;{$ENDIF}
 
 {-------------------------------------------------------------------------------
 ================================================================================
@@ -250,31 +266,31 @@ procedure RORValue(var Value: UInt64; Shift: UInt8); overload;{$IFDEF CanInline}
 ================================================================================
 -------------------------------------------------------------------------------}
 
-Function RCLCarry(Value: UInt8; Shift: UInt8; var CF: ByteBool): UInt8; overload;
-Function RCLCarry(Value: UInt16; Shift: UInt8; var CF: ByteBool): UInt16; overload;
-Function RCLCarry(Value: UInt32; Shift: UInt8; var CF: ByteBool): UInt32; overload;
-Function RCLCarry(Value: UInt64; Shift: UInt8; var CF: ByteBool): UInt64; overload;
+Function RCLCarry(Value: UInt8; Shift: UInt8; var CF: ByteBool): UInt8; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
+Function RCLCarry(Value: UInt16; Shift: UInt8; var CF: ByteBool): UInt16; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
+Function RCLCarry(Value: UInt32; Shift: UInt8; var CF: ByteBool): UInt32; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
+Function RCLCarry(Value: UInt64; Shift: UInt8; var CF: ByteBool): UInt64; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
 
 //------------------------------------------------------------------------------
 
-Function RCL(Value: UInt8; Shift: UInt8; CF: ByteBool = False): UInt8; overload;{$IFDEF CanInline} inline; {$ENDIF}
-Function RCL(Value: UInt16; Shift: UInt8; CF: ByteBool = False): UInt16; overload;{$IFDEF CanInline} inline; {$ENDIF}
-Function RCL(Value: UInt32; Shift: UInt8; CF: ByteBool = False): UInt32; overload;{$IFDEF CanInline} inline; {$ENDIF}
-Function RCL(Value: UInt64; Shift: UInt8; CF: ByteBool = False): UInt64; overload;{$IFDEF CanInline} inline; {$ENDIF}
+Function RCL(Value: UInt8; Shift: UInt8; CF: ByteBool = False): UInt8; overload;{$IFDEF CanInline} inline;{$ENDIF}
+Function RCL(Value: UInt16; Shift: UInt8; CF: ByteBool = False): UInt16; overload;{$IFDEF CanInline} inline;{$ENDIF}
+Function RCL(Value: UInt32; Shift: UInt8; CF: ByteBool = False): UInt32; overload;{$IFDEF CanInline} inline;{$ENDIF}
+Function RCL(Value: UInt64; Shift: UInt8; CF: ByteBool = False): UInt64; overload;{$IFDEF CanInline} inline;{$ENDIF}
 
 //------------------------------------------------------------------------------
 
-procedure RCLValueCarry(var Value: UInt8; Shift: UInt8; var CF: ByteBool); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure RCLValueCarry(var Value: UInt16; Shift: UInt8; var CF: ByteBool); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure RCLValueCarry(var Value: UInt32; Shift: UInt8; var CF: ByteBool); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure RCLValueCarry(var Value: UInt64; Shift: UInt8; var CF: ByteBool); overload;{$IFDEF CanInline} inline; {$ENDIF}
+procedure RCLValueCarry(var Value: UInt8; Shift: UInt8; var CF: ByteBool); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure RCLValueCarry(var Value: UInt16; Shift: UInt8; var CF: ByteBool); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure RCLValueCarry(var Value: UInt32; Shift: UInt8; var CF: ByteBool); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure RCLValueCarry(var Value: UInt64; Shift: UInt8; var CF: ByteBool); overload;{$IFDEF CanInline} inline;{$ENDIF}
 
 //------------------------------------------------------------------------------
 
-procedure RCLValue(var Value: UInt8; Shift: UInt8; CF: ByteBool = False); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure RCLValue(var Value: UInt16; Shift: UInt8; CF: ByteBool = False); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure RCLValue(var Value: UInt32; Shift: UInt8; CF: ByteBool = False); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure RCLValue(var Value: UInt64; Shift: UInt8; CF: ByteBool = False); overload;{$IFDEF CanInline} inline; {$ENDIF}
+procedure RCLValue(var Value: UInt8; Shift: UInt8; CF: ByteBool = False); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure RCLValue(var Value: UInt16; Shift: UInt8; CF: ByteBool = False); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure RCLValue(var Value: UInt32; Shift: UInt8; CF: ByteBool = False); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure RCLValue(var Value: UInt64; Shift: UInt8; CF: ByteBool = False); overload;{$IFDEF CanInline} inline;{$ENDIF}
 
 {-------------------------------------------------------------------------------
 ================================================================================
@@ -282,31 +298,31 @@ procedure RCLValue(var Value: UInt64; Shift: UInt8; CF: ByteBool = False); overl
 ================================================================================
 -------------------------------------------------------------------------------}
 
-Function RCRCarry(Value: UInt8; Shift: UInt8; var CF: ByteBool): UInt8; overload;
-Function RCRCarry(Value: UInt16; Shift: UInt8; var CF: ByteBool): UInt16; overload;
-Function RCRCarry(Value: UInt32; Shift: UInt8; var CF: ByteBool): UInt32; overload;
-Function RCRCarry(Value: UInt64; Shift: UInt8; var CF: ByteBool): UInt64; overload;
+Function RCRCarry(Value: UInt8; Shift: UInt8; var CF: ByteBool): UInt8; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
+Function RCRCarry(Value: UInt16; Shift: UInt8; var CF: ByteBool): UInt16; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
+Function RCRCarry(Value: UInt32; Shift: UInt8; var CF: ByteBool): UInt32; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
+Function RCRCarry(Value: UInt64; Shift: UInt8; var CF: ByteBool): UInt64; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
 
 //------------------------------------------------------------------------------
 
-Function RCR(Value: UInt8; Shift: UInt8; CF: ByteBool = False): UInt8; overload;{$IFDEF CanInline} inline; {$ENDIF}
-Function RCR(Value: UInt16; Shift: UInt8; CF: ByteBool = False): UInt16; overload;{$IFDEF CanInline} inline; {$ENDIF}
-Function RCR(Value: UInt32; Shift: UInt8; CF: ByteBool = False): UInt32; overload;{$IFDEF CanInline} inline; {$ENDIF}
-Function RCR(Value: UInt64; Shift: UInt8; CF: ByteBool = False): UInt64; overload;{$IFDEF CanInline} inline; {$ENDIF}
+Function RCR(Value: UInt8; Shift: UInt8; CF: ByteBool = False): UInt8; overload;{$IFDEF CanInline} inline;{$ENDIF}
+Function RCR(Value: UInt16; Shift: UInt8; CF: ByteBool = False): UInt16; overload;{$IFDEF CanInline} inline;{$ENDIF}
+Function RCR(Value: UInt32; Shift: UInt8; CF: ByteBool = False): UInt32; overload;{$IFDEF CanInline} inline;{$ENDIF}
+Function RCR(Value: UInt64; Shift: UInt8; CF: ByteBool = False): UInt64; overload;{$IFDEF CanInline} inline;{$ENDIF}
 
 //------------------------------------------------------------------------------
 
-procedure RCRValueCarry(var Value: UInt8; Shift: UInt8; var CF: ByteBool); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure RCRValueCarry(var Value: UInt16; Shift: UInt8; var CF: ByteBool); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure RCRValueCarry(var Value: UInt32; Shift: UInt8; var CF: ByteBool); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure RCRValueCarry(var Value: UInt64; Shift: UInt8; var CF: ByteBool); overload;{$IFDEF CanInline} inline; {$ENDIF}
+procedure RCRValueCarry(var Value: UInt8; Shift: UInt8; var CF: ByteBool); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure RCRValueCarry(var Value: UInt16; Shift: UInt8; var CF: ByteBool); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure RCRValueCarry(var Value: UInt32; Shift: UInt8; var CF: ByteBool); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure RCRValueCarry(var Value: UInt64; Shift: UInt8; var CF: ByteBool); overload;{$IFDEF CanInline} inline;{$ENDIF}
 
 //------------------------------------------------------------------------------
 
-procedure RCRValue(var Value: UInt8; Shift: UInt8; CF: ByteBool = False); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure RCRValue(var Value: UInt16; Shift: UInt8; CF: ByteBool = False); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure RCRValue(var Value: UInt32; Shift: UInt8; CF: ByteBool = False); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure RCRValue(var Value: UInt64; Shift: UInt8; CF: ByteBool = False); overload;{$IFDEF CanInline} inline; {$ENDIF}
+procedure RCRValue(var Value: UInt8; Shift: UInt8; CF: ByteBool = False); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure RCRValue(var Value: UInt16; Shift: UInt8; CF: ByteBool = False); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure RCRValue(var Value: UInt32; Shift: UInt8; CF: ByteBool = False); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure RCRValue(var Value: UInt64; Shift: UInt8; CF: ByteBool = False); overload;{$IFDEF CanInline} inline;{$ENDIF}
 
 {-------------------------------------------------------------------------------
 ================================================================================
@@ -314,17 +330,17 @@ procedure RCRValue(var Value: UInt64; Shift: UInt8; CF: ByteBool = False); overl
 ================================================================================
 -------------------------------------------------------------------------------}
 
-Function SAL(Value: UInt8; Shift: UInt8): UInt8; overload;{$IF Defined(CanInline) and Defined(PurePascal)} inline; {$IFEND}
-Function SAL(Value: UInt16; Shift: UInt8): UInt16; overload;{$IF Defined(CanInline) and Defined(PurePascal)} inline; {$IFEND}
-Function SAL(Value: UInt32; Shift: UInt8): UInt32; overload;{$IF Defined(CanInline) and Defined(PurePascal)} inline; {$IFEND}
-Function SAL(Value: UInt64; Shift: UInt8): UInt64; overload;{$IF Defined(CanInline) and Defined(PurePascal)} inline; {$IFEND}
+Function SAL(Value: UInt8; Shift: UInt8): UInt8; overload;{$IFDEF PurePascal}{$IFDEF CanInline} inline;{$ENDIF}{$ELSE} register; assembler;{$ENDIF}
+Function SAL(Value: UInt16; Shift: UInt8): UInt16; overload;{$IFDEF PurePascal}{$IFDEF CanInline} inline;{$ENDIF}{$ELSE} register; assembler;{$ENDIF}
+Function SAL(Value: UInt32; Shift: UInt8): UInt32; overload;{$IFDEF PurePascal}{$IFDEF CanInline} inline;{$ENDIF}{$ELSE} register; assembler;{$ENDIF}
+Function SAL(Value: UInt64; Shift: UInt8): UInt64; overload;{$IFDEF PurePascal}{$IFDEF CanInline} inline;{$ENDIF}{$ELSE} register; assembler;{$ENDIF}
 
 //------------------------------------------------------------------------------
 
-procedure SALValue(var Value: UInt8; Shift: UInt8); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure SALValue(var Value: UInt16; Shift: UInt8); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure SALValue(var Value: UInt32; Shift: UInt8); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure SALValue(var Value: UInt64; Shift: UInt8); overload;{$IFDEF CanInline} inline; {$ENDIF}
+procedure SALValue(var Value: UInt8; Shift: UInt8); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure SALValue(var Value: UInt16; Shift: UInt8); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure SALValue(var Value: UInt32; Shift: UInt8); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure SALValue(var Value: UInt64; Shift: UInt8); overload;{$IFDEF CanInline} inline;{$ENDIF}
 
 {-------------------------------------------------------------------------------
 ================================================================================
@@ -332,17 +348,17 @@ procedure SALValue(var Value: UInt64; Shift: UInt8); overload;{$IFDEF CanInline}
 ================================================================================
 -------------------------------------------------------------------------------}
 
-Function SAR(Value: UInt8; Shift: UInt8): UInt8; overload;
-Function SAR(Value: UInt16; Shift: UInt8): UInt16; overload;
-Function SAR(Value: UInt32; Shift: UInt8): UInt32; overload;
-Function SAR(Value: UInt64; Shift: UInt8): UInt64; overload;
+Function SAR(Value: UInt8; Shift: UInt8): UInt8; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
+Function SAR(Value: UInt16; Shift: UInt8): UInt16; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
+Function SAR(Value: UInt32; Shift: UInt8): UInt32; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
+Function SAR(Value: UInt64; Shift: UInt8): UInt64; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
 
 //------------------------------------------------------------------------------
 
-procedure SARValue(var Value: UInt8; Shift: UInt8); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure SARValue(var Value: UInt16; Shift: UInt8); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure SARValue(var Value: UInt32; Shift: UInt8); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure SARValue(var Value: UInt64; Shift: UInt8); overload;{$IFDEF CanInline} inline; {$ENDIF}
+procedure SARValue(var Value: UInt8; Shift: UInt8); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure SARValue(var Value: UInt16; Shift: UInt8); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure SARValue(var Value: UInt32; Shift: UInt8); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure SARValue(var Value: UInt64; Shift: UInt8); overload;{$IFDEF CanInline} inline;{$ENDIF}
 
 {-------------------------------------------------------------------------------
 ================================================================================
@@ -350,19 +366,19 @@ procedure SARValue(var Value: UInt64; Shift: UInt8); overload;{$IFDEF CanInline}
 ================================================================================
 -------------------------------------------------------------------------------}
 
-Function EndianSwap(Value: UInt16): UInt16; overload;{$IF Defined(CanInline) and Defined(PurePascal)} inline; {$IFEND}
-Function EndianSwap(Value: UInt32): UInt32; overload;
-Function EndianSwap(Value: UInt64): UInt64; overload;
+Function EndianSwap(Value: UInt16): UInt16; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
+Function EndianSwap(Value: UInt32): UInt32; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
+Function EndianSwap(Value: UInt64): UInt64; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
 
 //------------------------------------------------------------------------------
 
-procedure EndianSwapValue(var Value: UInt16); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure EndianSwapValue(var Value: UInt32); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure EndianSwapValue(var Value: UInt64); overload;{$IFDEF CanInline} inline; {$ENDIF}
+procedure EndianSwapValue(var Value: UInt16); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure EndianSwapValue(var Value: UInt32); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure EndianSwapValue(var Value: UInt64); overload;{$IFDEF CanInline} inline;{$ENDIF}
 
 //------------------------------------------------------------------------------
 
-procedure EndianSwap(var Buffer; Size: TMemSize); overload;
+procedure EndianSwap(var Buffer; Size: TMemSize); overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
 
 {-------------------------------------------------------------------------------
 ================================================================================
@@ -370,10 +386,10 @@ procedure EndianSwap(var Buffer; Size: TMemSize); overload;
 ================================================================================
 -------------------------------------------------------------------------------}
 
-Function BT(Value: UInt8; Bit: UInt8): ByteBool; overload;{$IF Defined(CanInline) and Defined(PurePascal)} inline; {$IFEND}
-Function BT(Value: UInt16; Bit: UInt8): ByteBool; overload;{$IF Defined(CanInline) and Defined(PurePascal)} inline; {$IFEND}
-Function BT(Value: UInt32; Bit: UInt8): ByteBool; overload;{$IF Defined(CanInline) and Defined(PurePascal)} inline; {$IFEND}
-Function BT(Value: UInt64; Bit: UInt8): ByteBool; overload;{$IF Defined(CanInline) and Defined(PurePascal)} inline; {$IFEND}
+Function BT(Value: UInt8; Bit: UInt8): ByteBool; overload;{$IFDEF PurePascal}{$IFDEF CanInline} inline;{$ENDIF}{$ELSE} register; assembler;{$ENDIF}
+Function BT(Value: UInt16; Bit: UInt8): ByteBool; overload;{$IFDEF PurePascal}{$IFDEF CanInline} inline;{$ENDIF}{$ELSE} register; assembler;{$ENDIF}
+Function BT(Value: UInt32; Bit: UInt8): ByteBool; overload;{$IFDEF PurePascal}{$IFDEF CanInline} inline;{$ENDIF}{$ELSE} register; assembler;{$ENDIF}
+Function BT(Value: UInt64; Bit: UInt8): ByteBool; overload;{$IFDEF PurePascal}{$IFDEF CanInline} inline;{$ENDIF}{$ELSE} register; assembler;{$ENDIF}
 
 {-------------------------------------------------------------------------------
 ================================================================================
@@ -381,10 +397,10 @@ Function BT(Value: UInt64; Bit: UInt8): ByteBool; overload;{$IF Defined(CanInlin
 ================================================================================
 -------------------------------------------------------------------------------}
 
-Function BTS(var Value: UInt8; Bit: UInt8): ByteBool; overload;
-Function BTS(var Value: UInt16; Bit: UInt8): ByteBool; overload;
-Function BTS(var Value: UInt32; Bit: UInt8): ByteBool; overload;
-Function BTS(var Value: UInt64; Bit: UInt8): ByteBool; overload;
+Function BTS(var Value: UInt8; Bit: UInt8): ByteBool; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
+Function BTS(var Value: UInt16; Bit: UInt8): ByteBool; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
+Function BTS(var Value: UInt32; Bit: UInt8): ByteBool; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
+Function BTS(var Value: UInt64; Bit: UInt8): ByteBool; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
 
 {-------------------------------------------------------------------------------
 ================================================================================
@@ -392,10 +408,10 @@ Function BTS(var Value: UInt64; Bit: UInt8): ByteBool; overload;
 ================================================================================
 -------------------------------------------------------------------------------}
 
-Function BTR(var Value: UInt8; Bit: UInt8): ByteBool; overload;
-Function BTR(var Value: UInt16; Bit: UInt8): ByteBool; overload;
-Function BTR(var Value: UInt32; Bit: UInt8): ByteBool; overload;
-Function BTR(var Value: UInt64; Bit: UInt8): ByteBool; overload;
+Function BTR(var Value: UInt8; Bit: UInt8): ByteBool; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
+Function BTR(var Value: UInt16; Bit: UInt8): ByteBool; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
+Function BTR(var Value: UInt32; Bit: UInt8): ByteBool; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
+Function BTR(var Value: UInt64; Bit: UInt8): ByteBool; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
 
 {-------------------------------------------------------------------------------
 ================================================================================
@@ -403,10 +419,10 @@ Function BTR(var Value: UInt64; Bit: UInt8): ByteBool; overload;
 ================================================================================
 -------------------------------------------------------------------------------}
 
-Function BTC(var Value: UInt8; Bit: UInt8): ByteBool; overload;
-Function BTC(var Value: UInt16; Bit: UInt8): ByteBool; overload;
-Function BTC(var Value: UInt32; Bit: UInt8): ByteBool; overload;
-Function BTC(var Value: UInt64; Bit: UInt8): ByteBool; overload;
+Function BTC(var Value: UInt8; Bit: UInt8): ByteBool; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
+Function BTC(var Value: UInt16; Bit: UInt8): ByteBool; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
+Function BTC(var Value: UInt32; Bit: UInt8): ByteBool; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
+Function BTC(var Value: UInt64; Bit: UInt8): ByteBool; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
 
 {-------------------------------------------------------------------------------
 ================================================================================
@@ -414,10 +430,10 @@ Function BTC(var Value: UInt64; Bit: UInt8): ByteBool; overload;
 ================================================================================
 -------------------------------------------------------------------------------}
 
-Function BitSetTo(var Value: UInt8; Bit: UInt8; NewValue: ByteBool): ByteBool; overload;{$IFDEF CanInline} inline; {$ENDIF}
-Function BitSetTo(var Value: UInt16; Bit: UInt8; NewValue: ByteBool): ByteBool; overload;{$IFDEF CanInline} inline; {$ENDIF}
-Function BitSetTo(var Value: UInt32; Bit: UInt8; NewValue: ByteBool): ByteBool; overload;{$IFDEF CanInline} inline; {$ENDIF}
-Function BitSetTo(var Value: UInt64; Bit: UInt8; NewValue: ByteBool): ByteBool; overload;{$IFDEF CanInline} inline; {$ENDIF}
+Function BitSetTo(var Value: UInt8; Bit: UInt8; NewValue: ByteBool): ByteBool; overload;
+Function BitSetTo(var Value: UInt16; Bit: UInt8; NewValue: ByteBool): ByteBool; overload;
+Function BitSetTo(var Value: UInt32; Bit: UInt8; NewValue: ByteBool): ByteBool; overload;
+Function BitSetTo(var Value: UInt64; Bit: UInt8; NewValue: ByteBool): ByteBool; overload;
 
 {-------------------------------------------------------------------------------
 ================================================================================
@@ -425,10 +441,10 @@ Function BitSetTo(var Value: UInt64; Bit: UInt8; NewValue: ByteBool): ByteBool; 
 ================================================================================
 -------------------------------------------------------------------------------}
 
-Function BSF(Value: UInt8): Int32; overload;
-Function BSF(Value: UInt16): Int32; overload;
-Function BSF(Value: UInt32): Int32; overload;
-Function BSF(Value: UInt64): Int32; overload;
+Function BSF(Value: UInt8): Int32; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
+Function BSF(Value: UInt16): Int32; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
+Function BSF(Value: UInt32): Int32; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
+Function BSF(Value: UInt64): Int32; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
 
 {-------------------------------------------------------------------------------
 ================================================================================
@@ -436,10 +452,10 @@ Function BSF(Value: UInt64): Int32; overload;
 ================================================================================
 -------------------------------------------------------------------------------}
 
-Function BSR(Value: UInt8): Int32; overload;
-Function BSR(Value: UInt16): Int32; overload;
-Function BSR(Value: UInt32): Int32; overload;
-Function BSR(Value: UInt64): Int32; overload;
+Function BSR(Value: UInt8): Int32; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
+Function BSR(Value: UInt16): Int32; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
+Function BSR(Value: UInt32): Int32; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
+Function BSR(Value: UInt64): Int32; overload;{$IFNDEF PurePascal} register; assembler;{$ENDIF}
 
 {-------------------------------------------------------------------------------
 ================================================================================
@@ -447,10 +463,10 @@ Function BSR(Value: UInt64): Int32; overload;
 ================================================================================
 -------------------------------------------------------------------------------}
 
-Function PopCount(Value: UInt8): Int32; overload;{$IF Defined(CanInline) and Defined(FPC)} inline; {$IFEND}
-Function PopCount(Value: UInt16): Int32; overload;{$IF Defined(CanInline) and Defined(FPC)} inline; {$IFEND}
-Function PopCount(Value: UInt32): Int32; overload;{$IF Defined(CanInline) and Defined(FPC)} inline; {$IFEND}
-Function PopCount(Value: UInt64): Int32; overload;{$IF Defined(CanInline) and Defined(FPC)} inline; {$IFEND}
+Function PopCount(Value: UInt8): Int32; overload;{$IF Defined(CanInline) and Defined(FPC)} inline;{$IFEND}
+Function PopCount(Value: UInt16): Int32; overload;{$IF Defined(CanInline) and Defined(FPC)} inline;{$IFEND}
+Function PopCount(Value: UInt32): Int32; overload;{$IF Defined(CanInline) and Defined(FPC)} inline;{$IFEND}
+Function PopCount(Value: UInt64): Int32; overload;{$IF Defined(CanInline) and Defined(FPC)} inline;{$IFEND}
 
 {-------------------------------------------------------------------------------
 ================================================================================
@@ -458,14 +474,14 @@ Function PopCount(Value: UInt64): Int32; overload;{$IF Defined(CanInline) and De
 ================================================================================
 -------------------------------------------------------------------------------}
 
-Function GetHighNibble(Value: UInt8): TNibble;{$IFDEF CanInline} inline; {$ENDIF}
-Function GetLowNibble(Value: UInt8): TNibble;{$IFDEF CanInline} inline; {$ENDIF}
+Function GetHighNibble(Value: UInt8): TNibble;{$IFDEF CanInline} inline;{$ENDIF}
+Function GetLowNibble(Value: UInt8): TNibble;{$IFDEF CanInline} inline;{$ENDIF}
 
-Function SetHighNibble(Value: UInt8; SetTo: TNibble): UInt8;{$IFDEF CanInline} inline; {$ENDIF}
-Function SetLowNibble(Value: UInt8; SetTo: TNibble): UInt8;{$IFDEF CanInline} inline; {$ENDIF}
+Function SetHighNibble(Value: UInt8; SetTo: TNibble): UInt8;{$IFDEF CanInline} inline;{$ENDIF}
+Function SetLowNibble(Value: UInt8; SetTo: TNibble): UInt8;{$IFDEF CanInline} inline;{$ENDIF}
 
-procedure SetHighNibbleValue(var Value: UInt8; SetTo: TNibble);{$IFDEF CanInline} inline; {$ENDIF}
-procedure SetLowNibbleValue(var Value: UInt8; SetTo: TNibble);{$IFDEF CanInline} inline; {$ENDIF}
+procedure SetHighNibbleValue(var Value: UInt8; SetTo: TNibble);{$IFDEF CanInline} inline;{$ENDIF}
+procedure SetLowNibbleValue(var Value: UInt8; SetTo: TNibble);{$IFDEF CanInline} inline;{$ENDIF}
 
 {-------------------------------------------------------------------------------
 ================================================================================
@@ -490,17 +506,17 @@ Function GetFlagState(Value,FlagBitmask: UInt64; ExactMatch: Boolean = False): B
   parameter parsing).
 }
 
-Function SetFlag(Value,FlagBitmask: UInt8): UInt8; overload;{$IFDEF CanInline} inline; {$ENDIF}
-Function SetFlag(Value,FlagBitmask: UInt16): UInt16; overload;{$IFDEF CanInline} inline; {$ENDIF}
-Function SetFlag(Value,FlagBitmask: UInt32): UInt32; overload;{$IFDEF CanInline} inline; {$ENDIF}
-Function SetFlag(Value,FlagBitmask: UInt64): UInt64; overload;{$IFDEF CanInline} inline; {$ENDIF}
+Function SetFlag(Value,FlagBitmask: UInt8): UInt8; overload;{$IFDEF CanInline} inline;{$ENDIF}
+Function SetFlag(Value,FlagBitmask: UInt16): UInt16; overload;{$IFDEF CanInline} inline;{$ENDIF}
+Function SetFlag(Value,FlagBitmask: UInt32): UInt32; overload;{$IFDEF CanInline} inline;{$ENDIF}
+Function SetFlag(Value,FlagBitmask: UInt64): UInt64; overload;{$IFDEF CanInline} inline;{$ENDIF}
 
 //------------------------------------------------------------------------------
 
-procedure SetFlagValue(var Value: UInt8; FlagBitmask: UInt8); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure SetFlagValue(var Value: UInt16; FlagBitmask: UInt16); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure SetFlagValue(var Value: UInt32; FlagBitmask: UInt32); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure SetFlagValue(var Value: UInt64; FlagBitmask: UInt64); overload;{$IFDEF CanInline} inline; {$ENDIF}
+procedure SetFlagValue(var Value: UInt8; FlagBitmask: UInt8); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure SetFlagValue(var Value: UInt16; FlagBitmask: UInt16); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure SetFlagValue(var Value: UInt32; FlagBitmask: UInt32); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure SetFlagValue(var Value: UInt64; FlagBitmask: UInt64); overload;{$IFDEF CanInline} inline;{$ENDIF}
 
 //------------------------------------------------------------------------------
 
@@ -542,17 +558,17 @@ procedure SetFlagsValue(var Value: UInt64; Flags: array of UInt64); overload;
   parameter parsing).
 }
 
-Function ResetFlag(Value,FlagBitmask: UInt8): UInt8; overload;{$IFDEF CanInline} inline; {$ENDIF}
-Function ResetFlag(Value,FlagBitmask: UInt16): UInt16; overload;{$IFDEF CanInline} inline; {$ENDIF}
-Function ResetFlag(Value,FlagBitmask: UInt32): UInt32; overload;{$IFDEF CanInline} inline; {$ENDIF}
-Function ResetFlag(Value,FlagBitmask: UInt64): UInt64; overload;{$IFDEF CanInline} inline; {$ENDIF}
+Function ResetFlag(Value,FlagBitmask: UInt8): UInt8; overload;{$IFDEF CanInline} inline;{$ENDIF}
+Function ResetFlag(Value,FlagBitmask: UInt16): UInt16; overload;{$IFDEF CanInline} inline;{$ENDIF}
+Function ResetFlag(Value,FlagBitmask: UInt32): UInt32; overload;{$IFDEF CanInline} inline;{$ENDIF}
+Function ResetFlag(Value,FlagBitmask: UInt64): UInt64; overload;{$IFDEF CanInline} inline;{$ENDIF}
 
 //------------------------------------------------------------------------------
 
-procedure ResetFlagValue(var Value: UInt8; FlagBitmask: UInt8); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure ResetFlagValue(var Value: UInt16; FlagBitmask: UInt16); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure ResetFlagValue(var Value: UInt32; FlagBitmask: UInt32); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure ResetFlagValue(var Value: UInt64; FlagBitmask: UInt64); overload;{$IFDEF CanInline} inline; {$ENDIF}
+procedure ResetFlagValue(var Value: UInt8; FlagBitmask: UInt8); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure ResetFlagValue(var Value: UInt16; FlagBitmask: UInt16); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure ResetFlagValue(var Value: UInt32; FlagBitmask: UInt32); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure ResetFlagValue(var Value: UInt64; FlagBitmask: UInt64); overload;{$IFDEF CanInline} inline;{$ENDIF}
 
 //------------------------------------------------------------------------------
 
@@ -595,10 +611,10 @@ Function SetFlagState(Value,FlagBitmask: UInt64; NewState: Boolean): UInt64; ove
 
 //------------------------------------------------------------------------------
 
-procedure SetFlagStateValue(var Value: UInt8; FlagBitmask: UInt8; NewState: Boolean); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure SetFlagStateValue(var Value: UInt16; FlagBitmask: UInt16; NewState: Boolean); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure SetFlagStateValue(var Value: UInt32; FlagBitmask: UInt32; NewState: Boolean); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure SetFlagStateValue(var Value: UInt64; FlagBitmask: UInt64; NewState: Boolean); overload;{$IFDEF CanInline} inline; {$ENDIF}
+procedure SetFlagStateValue(var Value: UInt8; FlagBitmask: UInt8; NewState: Boolean); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure SetFlagStateValue(var Value: UInt16; FlagBitmask: UInt16; NewState: Boolean); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure SetFlagStateValue(var Value: UInt32; FlagBitmask: UInt32; NewState: Boolean); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure SetFlagStateValue(var Value: UInt64; FlagBitmask: UInt64; NewState: Boolean); overload;{$IFDEF CanInline} inline;{$ENDIF}
 
 {-------------------------------------------------------------------------------
 ================================================================================
@@ -629,10 +645,10 @@ Function SetBits(Value,NewBits: UInt64; FromBit,ToBit: Integer): UInt64; overloa
 
 //------------------------------------------------------------------------------
 
-procedure SetBitsValue(var Value: UInt8; NewBits: UInt8; FromBit,ToBit: Integer); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure SetBitsValue(var Value: UInt16; NewBits: UInt16; FromBit,ToBit: Integer); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure SetBitsValue(var Value: UInt32; NewBits: UInt32; FromBit,ToBit: Integer); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure SetBitsValue(var Value: UInt64; NewBits: UInt64; FromBit,ToBit: Integer); overload;{$IFDEF CanInline} inline; {$ENDIF}
+procedure SetBitsValue(var Value: UInt8; NewBits: UInt8; FromBit,ToBit: Integer); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure SetBitsValue(var Value: UInt16; NewBits: UInt16; FromBit,ToBit: Integer); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure SetBitsValue(var Value: UInt32; NewBits: UInt32; FromBit,ToBit: Integer); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure SetBitsValue(var Value: UInt64; NewBits: UInt64; FromBit,ToBit: Integer); overload;{$IFDEF CanInline} inline;{$ENDIF}
 
 {-------------------------------------------------------------------------------
 ================================================================================
@@ -647,10 +663,10 @@ Function ReverseBits(Value: UInt64): UInt64; overload;
 
 //------------------------------------------------------------------------------
 
-procedure ReverseBitsValue(var Value: UInt8); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure ReverseBitsValue(var Value: UInt16); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure ReverseBitsValue(var Value: UInt32); overload;{$IFDEF CanInline} inline; {$ENDIF}
-procedure ReverseBitsValue(var Value: UInt64); overload;{$IFDEF CanInline} inline; {$ENDIF}
+procedure ReverseBitsValue(var Value: UInt8); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure ReverseBitsValue(var Value: UInt16); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure ReverseBitsValue(var Value: UInt32); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure ReverseBitsValue(var Value: UInt64); overload;{$IFDEF CanInline} inline;{$ENDIF}
 
 {-------------------------------------------------------------------------------
 ================================================================================
@@ -658,10 +674,10 @@ procedure ReverseBitsValue(var Value: UInt64); overload;{$IFDEF CanInline} inlin
 ================================================================================
 -------------------------------------------------------------------------------}
 
-Function LZCount(Value: UInt8): Int32; overload;{$IF Defined(CanInline) and Defined(FPC)} inline; {$IFEND}
-Function LZCount(Value: UInt16): Int32; overload;{$IF Defined(CanInline) and Defined(FPC)} inline; {$IFEND}
-Function LZCount(Value: UInt32): Int32; overload;{$IF Defined(CanInline) and Defined(FPC)} inline; {$IFEND}
-Function LZCount(Value: UInt64): Int32; overload;{$IF Defined(CanInline) and Defined(FPC)} inline; {$IFEND}
+Function LZCount(Value: UInt8): Int32; overload;{$IF Defined(CanInline) and Defined(FPC)} inline;{$IFEND}
+Function LZCount(Value: UInt16): Int32; overload;{$IF Defined(CanInline) and Defined(FPC)} inline;{$IFEND}
+Function LZCount(Value: UInt32): Int32; overload;{$IF Defined(CanInline) and Defined(FPC)} inline;{$IFEND}
+Function LZCount(Value: UInt64): Int32; overload;{$IF Defined(CanInline) and Defined(FPC)} inline;{$IFEND}
 
 {-------------------------------------------------------------------------------
 ================================================================================
@@ -669,10 +685,10 @@ Function LZCount(Value: UInt64): Int32; overload;{$IF Defined(CanInline) and Def
 ================================================================================
 -------------------------------------------------------------------------------}
 
-Function TZCount(Value: UInt8): Int32; overload;{$IF Defined(CanInline) and Defined(FPC)} inline; {$IFEND}
-Function TZCount(Value: UInt16): Int32; overload;{$IF Defined(CanInline) and Defined(FPC)} inline; {$IFEND}
-Function TZCount(Value: UInt32): Int32; overload;{$IF Defined(CanInline) and Defined(FPC)} inline; {$IFEND}
-Function TZCount(Value: UInt64): Int32; overload;{$IF Defined(CanInline) and Defined(FPC)} inline; {$IFEND}
+Function TZCount(Value: UInt8): Int32; overload;{$IF Defined(CanInline) and Defined(FPC)} inline;{$IFEND}
+Function TZCount(Value: UInt16): Int32; overload;{$IF Defined(CanInline) and Defined(FPC)} inline;{$IFEND}
+Function TZCount(Value: UInt32): Int32; overload;{$IF Defined(CanInline) and Defined(FPC)} inline;{$IFEND}
+Function TZCount(Value: UInt64): Int32; overload;{$IF Defined(CanInline) and Defined(FPC)} inline;{$IFEND}
 
 {-------------------------------------------------------------------------------
 ================================================================================
@@ -680,10 +696,10 @@ Function TZCount(Value: UInt64): Int32; overload;{$IF Defined(CanInline) and Def
 ================================================================================
 -------------------------------------------------------------------------------}
 
-Function ExtractBits(Value: UInt8; Start, Length: UInt8): UInt8; overload;{$IF Defined(CanInline) and Defined(FPC)} inline; {$IFEND}
-Function ExtractBits(Value: UInt16; Start, Length: UInt8): UInt16; overload;{$IF Defined(CanInline) and Defined(FPC)} inline; {$IFEND}
-Function ExtractBits(Value: UInt32; Start, Length: UInt8): UInt32; overload;{$IF Defined(CanInline) and Defined(FPC)} inline; {$IFEND}
-Function ExtractBits(Value: UInt64; Start, Length: UInt8): UInt64; overload;{$IF Defined(CanInline) and Defined(FPC)} inline; {$IFEND}
+Function ExtractBits(Value: UInt8; Start, Length: UInt8): UInt8; overload;{$IF Defined(CanInline) and Defined(FPC)} inline;{$IFEND}
+Function ExtractBits(Value: UInt16; Start, Length: UInt8): UInt16; overload;{$IF Defined(CanInline) and Defined(FPC)} inline;{$IFEND}
+Function ExtractBits(Value: UInt32; Start, Length: UInt8): UInt32; overload;{$IF Defined(CanInline) and Defined(FPC)} inline;{$IFEND}
+Function ExtractBits(Value: UInt64; Start, Length: UInt8): UInt64; overload;{$IF Defined(CanInline) and Defined(FPC)} inline;{$IFEND}
 
 {-------------------------------------------------------------------------------
 ================================================================================
@@ -691,10 +707,10 @@ Function ExtractBits(Value: UInt64; Start, Length: UInt8): UInt64; overload;{$IF
 ================================================================================
 -------------------------------------------------------------------------------}
 
-Function ParallelBitsExtract(Value, Mask: UInt8): UInt8; overload;{$IF Defined(CanInline) and Defined(FPC)} inline; {$IFEND}
-Function ParallelBitsExtract(Value, Mask: UInt16): UInt16; overload;{$IF Defined(CanInline) and Defined(FPC)} inline; {$IFEND}
-Function ParallelBitsExtract(Value, Mask: UInt32): UInt32; overload;{$IF Defined(CanInline) and Defined(FPC)} inline; {$IFEND}
-Function ParallelBitsExtract(Value, Mask: UInt64): UInt64; overload;{$IF Defined(CanInline) and Defined(FPC)} inline; {$IFEND}
+Function ParallelBitsExtract(Value, Mask: UInt8): UInt8; overload;{$IF Defined(CanInline) and Defined(FPC)} inline;{$IFEND}
+Function ParallelBitsExtract(Value, Mask: UInt16): UInt16; overload;{$IF Defined(CanInline) and Defined(FPC)} inline;{$IFEND}
+Function ParallelBitsExtract(Value, Mask: UInt32): UInt32; overload;{$IF Defined(CanInline) and Defined(FPC)} inline;{$IFEND}
+Function ParallelBitsExtract(Value, Mask: UInt64): UInt64; overload;{$IF Defined(CanInline) and Defined(FPC)} inline;{$IFEND}
 
 {-------------------------------------------------------------------------------
 ================================================================================
@@ -702,10 +718,10 @@ Function ParallelBitsExtract(Value, Mask: UInt64): UInt64; overload;{$IF Defined
 ================================================================================
 -------------------------------------------------------------------------------}
 
-Function ParallelBitsDeposit(Value, Mask: UInt8): UInt8; overload;{$IF Defined(CanInline) and Defined(FPC)} inline; {$IFEND}
-Function ParallelBitsDeposit(Value, Mask: UInt16): UInt16; overload;{$IF Defined(CanInline) and Defined(FPC)} inline; {$IFEND}
-Function ParallelBitsDeposit(Value, Mask: UInt32): UInt32; overload;{$IF Defined(CanInline) and Defined(FPC)} inline; {$IFEND}
-Function ParallelBitsDeposit(Value, Mask: UInt64): UInt64; overload;{$IF Defined(CanInline) and Defined(FPC)} inline; {$IFEND}
+Function ParallelBitsDeposit(Value, Mask: UInt8): UInt8; overload;{$IF Defined(CanInline) and Defined(FPC)} inline;{$IFEND}
+Function ParallelBitsDeposit(Value, Mask: UInt16): UInt16; overload;{$IF Defined(CanInline) and Defined(FPC)} inline;{$IFEND}
+Function ParallelBitsDeposit(Value, Mask: UInt32): UInt32; overload;{$IF Defined(CanInline) and Defined(FPC)} inline;{$IFEND}
+Function ParallelBitsDeposit(Value, Mask: UInt64): UInt64; overload;{$IF Defined(CanInline) and Defined(FPC)} inline;{$IFEND}
 
 {-------------------------------------------------------------------------------
 ================================================================================
@@ -748,8 +764,8 @@ Function DataToHexStr(Arr: array of UInt8): String; overload;{$IFDEF Inline} inl
 Function HexStrToData(const Str: String; out Buffer; Size: TMemSize; HexStringFormat: THexStringFormat): TMemSize; overload;
 Function HexStrToData(const Str: String; HexStringFormat: THexStringFormat): TArrayOfBytes; overload;
 
-Function HexStrToData(const Str: String; out Buffer; Size: TMemSize; Split: THexStringSplit): TMemSize; overload;
-Function HexStrToData(const Str: String; Split: THexStringSplit): TArrayOfBytes; overload;
+Function HexStrToData(const Str: String; out Buffer; Size: TMemSize; SplitChar: Char): TMemSize; overload;
+Function HexStrToData(const Str: String; SplitChar: Char): TArrayOfBytes; overload;
 
 Function HexStrToData(const Str: String; out Buffer; Size: TMemSize): TMemSize; overload;{$IFDEF Inline} inline; {$ENDIF}
 Function HexStrToData(const Str: String): TArrayOfBytes; overload;{$IFDEF Inline} inline; {$ENDIF}
@@ -759,8 +775,8 @@ Function HexStrToData(const Str: String): TArrayOfBytes; overload;{$IFDEF Inline
 Function TryHexStrToData(const Str: String; out Buffer; var Size: TMemSize; HexStringFormat: THexStringFormat): Boolean; overload;
 Function TryHexStrToData(const Str: String; out Arr: TArrayOfBytes; HexStringFormat: THexStringFormat): Boolean; overload;
 
-Function TryHexStrToData(const Str: String; out Buffer; var Size: TMemSize; Split: THexStringSplit): Boolean; overload;
-Function TryHexStrToData(const Str: String; out Arr: TArrayOfBytes; Split: THexStringSplit): Boolean; overload;
+Function TryHexStrToData(const Str: String; out Buffer; var Size: TMemSize; SplitChar: Char): Boolean; overload;
+Function TryHexStrToData(const Str: String; out Arr: TArrayOfBytes; SplitChar: Char): Boolean; overload;
 
 Function TryHexStrToData(const Str: String; out Buffer; var Size: TMemSize): Boolean; overload;{$IFDEF Inline} inline; {$ENDIF}
 Function TryHexStrToData(const Str: String; out Arr: TArrayOfBytes): Boolean; overload;{$IFDEF Inline} inline; {$ENDIF}
@@ -770,23 +786,60 @@ Function TryHexStrToData(const Str: String; out Arr: TArrayOfBytes): Boolean; ov
                              Binary data comparison
 ================================================================================
 -------------------------------------------------------------------------------}
+
+type
+  TCompareMethod = (cmSizeData,cmDataSize,cmEqSizeData);
 {
-  If the two data samples differ in size, and AllowSizeDiff is set to true,
-  then CompareData will return negative number when sample A is shorter than
-  sample B, positive number otherwise, irrespective of actual data. If the
-  AllowSizeDiff parameter is set to false, the function will raise an exception
-  of type EBOSizeMismatch.
+  Following function are comparing data presented in two buffers or two arrays
+  of byte.
 
-  If the samples hawe equal size, the data are compared byte-by-byte. The bytes
-  are not summed or processed in any way, they are merely compared. When first
-  two differing bytes are encountered, they are compared, result is set
-  accordingly and traversing is immediately terminated.
-  If the byte in first sample is smaller than byte in the second sample, then
-  result will be set to a negative number, otherwise it will be set to a
-  positive number.
+  Behavior of these functions depends on how the parameter CompareMethod is set:
 
-  If both the data have the same size and contains the same bytestream, then
-  CompareData returns zero.
+    cmSizeData
+
+      The function first compares size of the buffers (length of arrays). When
+      they do not match, the function will return negative value when the first
+      size (length) is smaller than the second, or positive value when the first
+      size (length) is larger than the second.
+      When sizes (lengths) match, the buffers are scanned byte-by-byte (in case
+      of arrays item-by-item). If all bytes within both buffers (items in
+      arrays) match, then 0 (zero) is returned. When a differing bytes (items)
+      on corresponding locations are found, they are compared and the result
+      is set according to this comparison (negative value when byte/item in the
+      first buffer/array is smaller than in the second, positive value when
+      byte/item in the first buffer/array is larger than in the second).
+
+    cmDataSize
+
+      The function first compares bytes/items on corresponding places common to
+      both buffers/arrays. When a differing byte/item is found, the function
+      exists and returns a negative value when byte/item in first buffer/array
+      is smaller than in the second, or positive value when byte/item in the
+      first buffer/array is larger than in the second.
+      When no differing byte is found, then the function compares sizes/lengths
+      and returns value according to this comparison. Negative value when first
+      size/length is smaller than second, positive value when first size/length
+      is larger than the second. When the sizes/lengths are matching, the
+      function will return 0.
+
+    cmEqSizeData
+
+      If both sizes/length are the same, then bytes on corresponding locations
+      are compared. When all bytes/items are matching, a zero is returned. If
+      any differing bytes/items are found, they are compared and result is set
+      according to this comparison. Negative value is returned when byte/item
+      in first buffer/array is smaller than in the second, positive value when
+      byte/item in the first buffer/array is larger than in the second.
+      If the sizes/lengths do not match, the function will raise an
+      EBOSizeMismatch exception.
+}
+Function CompareData(const A; SizeA: TMemSize; const B; SizeB: TMemSize; CompareMethod: TCompareMethod): Integer; overload;
+Function CompareData(A,B: array of UInt8; CompareMethod: TCompareMethod): Integer; overload;
+
+{
+  Following overloads are here only for the sake of backward compatibility.
+  They call main implementation with a parameter CompareMethod set to cmSizeData
+  when AllowSizeDiff is true, or cmEqSizeData when AllowSizeDiff is false);
 }
 Function CompareData(const A; SizeA: TMemSize; const B; SizeB: TMemSize; AllowSizeDiff: Boolean = True): Integer; overload;
 Function CompareData(A,B: array of UInt8; AllowSizeDiff: Boolean = True): Integer; overload;
@@ -800,6 +853,8 @@ Function CompareData(A,B: array of UInt8; AllowSizeDiff: Boolean = True): Intege
   If the two data samples differ in size, SameData will return false,
   irrespective of actual content.
   If both data have zero size, it will return true.
+  In other cases it will compare the buffer/array byte-by-byte and return true
+  only when all corresponding bytes within them are equal, false otherwise.
 }
 Function SameData(const A; SizeA: TMemSize; const B; SizeB: TMemSize): Boolean; overload;
 Function SameData(A,B: array of UInt8): Boolean; overload;
@@ -820,48 +875,107 @@ Function BitParity(Value: UInt64): Boolean; overload;
 
 {-------------------------------------------------------------------------------
 ================================================================================
-                            Unit implementation info
+                           Pointer arithmetic helpers                                                                                  
 ================================================================================
 -------------------------------------------------------------------------------}
 
+Function PtrAdvance(Ptr: Pointer; Offset: PtrInt): Pointer; overload;
+Function PtrAdvance(Ptr: Pointer; Count: Integer; Stride: TMemSize): Pointer; overload;
+
+procedure PtrAdvanceVar(var Ptr: Pointer; Offset: PtrInt); overload;{$IFDEF CanInline} inline;{$ENDIF}
+procedure PtrAdvanceVar(var Ptr: Pointer; Count: Integer; Stride: TMemSize); overload;{$IFDEF CanInline} inline;{$ENDIF}
+
+{-------------------------------------------------------------------------------
+================================================================================
+                         Unit implementation management
+================================================================================
+-------------------------------------------------------------------------------}
+{
+  Some of the functions provided by this library can have multiple various
+  implementations, typically one in pascal and one in assembly.
+
+  In most cases, which implementation will be used is decided during compilation
+  according to active symbols - in most cases asm is used whenever symbol
+  PurePascal is not defined.
+
+  But in some case, when PurePascal is not defined, it cannot be decided whether
+  the asm implementation can be used or not in advance - usually because the
+  asm version uses some CPU instruction extension that is not guaranteed to be
+  present on the executing machine.
+  These functions have both implementations (pascal and assembly) compiled, and
+  which will be used is selected at unit initialization after checking CPU for
+  required extensions.
+
+  When such function is called, the selected implementation is called via an
+  internal global variable which holds pointer to the implementation. Within
+  this library, this process is called "routing".
+
+  Following types and functions are here to obtain information about which
+  implementation is currently selected and to provide a mean of changing it.
+
+  WARNING - be wery careful when changing the selected implementation, as there
+            is absolutely no thread-safety protection (the variables are global,
+            initialized only once and not expected to be ever changed)
+}
+
 type
-  TBitOpsFunctions = (fnPopCount8,fnPopCount16,fnPopCount32,fnPopCount64,
-                      fnLZCount8,fnLZCount16,fnLZCount32,fnLZCount64,
-                      fnTZCount8,fnTZCount16,fnTZCount32,fnTZCount64,
-                      fnExtractBits8,fnExtractBits16,fnExtractBits32,fnExtractBits64,
-                      fnParallelBitsExtract8,fnParallelBitsExtract16,
-                      fnParallelBitsExtract32,fnParallelBitsExtract64,
-                      fnParallelBitsDeposit8,fnParallelBitsDeposit16,
-                      fnParallelBitsDeposit32,fnParallelBitsDeposit64);
+  TUIM_BitOps_Function = (
+    fnPopCount8,fnPopCount16,fnPopCount32,fnPopCount64,                                             // PopCount()
+    fnLZCount8,fnLZCount16,fnLZCount32,fnLZCount64,                                                 // LZCount()
+    fnTZCount8,fnTZCount16,fnTZCount32,fnTZCount64,                                                 // TZCount()
+    fnExtractBits8,fnExtractBits16,fnExtractBits32,fnExtractBits64,                                 // ExtractBits()
+    fnParallelBitsExtract8,fnParallelBitsExtract16,fnParallelBitsExtract32,fnParallelBitsExtract64, // ParallelBitsExtract()
+    fnParallelBitsDeposit8,fnParallelBitsDeposit16,fnParallelBitsDeposit32,fnParallelBitsDeposit64  // ParallelBitsDeposit()
+  );
+
+  TUIM_BitOps_Implementation = (imNone,imPascal,imAssembly);
+
+  TUIM_BitOps_Implementations = set of TUIM_BitOps_Implementation;
+
+//------------------------------------------------------------------------------
 
 {
-  Returns true when selected function is currently set to asm-implemented code,
-  false otherwise.
+  Returns which implementations are available for the selected function.
 }
-Function BitOpsFunctionIsAsm(Func: TBitOpsFunctions): Boolean;
+Function UIM_BitOps_AvailableFuncImpl(Func: TUIM_BitOps_Function): TUIM_BitOps_Implementations;
 
 {
-  Routes selected function to pascal implementation.
+  Returns which implementations are supported and can be safely selected for
+  a given function.
 }
-procedure BitOpsFunctionPas(Func: TBitOpsFunctions);
-{
-  Routes selected function to assembly implementation.
-  Does nothing when PurePascal symbol is defined.
-}
-procedure BitOpsFunctionAsm(Func: TBitOpsFunctions);
+Function UIM_BitOps_SupportedFuncImpl(Func: TUIM_BitOps_Function): TUIM_BitOps_Implementations;
 
 {
-  Calls BitOpsFunctionAsm for selected function when AssignASM is set to true
-  and PurePascal symbol is NOT defined, otherwise it calls BitOpsFunctionPas.
+  Returns value indicating what implementation of the selected function is
+  executed when calling the function.
 }
-procedure BitOpsFunctionAssign(Func: TBitOpsFunctions; AssignASM: Boolean);
+Function UIM_BitOps_GetFuncImpl(Func: TUIM_BitOps_Function): TUIM_BitOps_Implementation;
+
+{
+  Routes selected function to a selected implementation.
+
+  Returned value is the previous routing.
+
+  NOTE - when asm implementation cannot be used, and you still select it,
+         the function will be routed to pascal version
+
+  WARNING - when selecting imNone as an implementation for some function, the
+            routing is set to nil, and because the routing mechanism, for the
+            sake of speed, does not check validity, it will result in an
+            exception when calling this function
+
+  WANRING - when selecting unsupported implementation, calling the function will
+            almost certainly result in an system exception (invalid
+            instruction).
+}
+Function UIM_BitOps_SetFuncImpl(Func: TUIM_BitOps_Function; NewImpl: TUIM_BitOps_Implementation): TUIM_BitOps_Implementation;
 
 implementation
 
-{$IF Defined(AllowASMExtensions) and not Defined(PurePascal)}
+{$IFDEF ASM_Extensions}
 uses
   SimpleCPUID;
-{$IFEND}
+{$ENDIF}
 
 {$IFDEF FPC_DisableWarns}
   {$DEFINE FPCDWM}
@@ -883,12 +997,16 @@ const
     When defined, some ASM instructions are inserted into byte stream directly
     as a machine code. It is there because not all compilers supports, and
     therefore can compile, such instructions.
+    
     As I am not able to tell which 32bit delphi compilers do support them,
     I am assuming none of them do. I am also assuming that all 64bit delphi
     compilers and current FPCs are supporting the instructions.
-    Has no effect when PurePascal is defined.
+
+    Has effect only in assembly code.
   }
   {$DEFINE ASM_MachineCode}
+{$ELSE}
+  {$UNDEF ASM_MachineCode}
 {$IFEND}
 
 {-------------------------------------------------------------------------------
@@ -1215,7 +1333,8 @@ end;
 ================================================================================
 -------------------------------------------------------------------------------}
 
-Function ROL(Value: UInt8; Shift: UInt8): UInt8;{$IFNDEF PurePascal}register; assembler;
+Function ROL(Value: UInt8; Shift: UInt8): UInt8;
+{$IFNDEF PurePascal} 
 asm
 {$IFDEF x64}
     MOV   AL,   Value
@@ -1232,7 +1351,8 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function ROL(Value: UInt16; Shift: UInt8): UInt16;{$IFNDEF PurePascal}register; assembler;
+Function ROL(Value: UInt16; Shift: UInt8): UInt16;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
     MOV   AX,   Value
@@ -1249,7 +1369,8 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function ROL(Value: UInt32; Shift: UInt8): UInt32;{$IFNDEF PurePascal}register; assembler;
+Function ROL(Value: UInt32; Shift: UInt8): UInt32;
+{$IFNDEF PurePascal} 
 asm
 {$IFDEF x64}
     MOV   EAX,  Value
@@ -1266,7 +1387,8 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function ROL(Value: UInt64; Shift: UInt8): UInt64;{$IFNDEF PurePascal}register; assembler;
+Function ROL(Value: UInt64; Shift: UInt8): UInt64;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
     MOV   RAX,  Value
@@ -1350,7 +1472,8 @@ end;
 ================================================================================
 -------------------------------------------------------------------------------}
 
-Function ROR(Value: UInt8; Shift: UInt8): UInt8;{$IFNDEF PurePascal}register; assembler;
+Function ROR(Value: UInt8; Shift: UInt8): UInt8;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
     MOV   AL,   Value
@@ -1367,7 +1490,8 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function ROR(Value: UInt16; Shift: UInt8): UInt16;{$IFNDEF PurePascal}register; assembler;
+Function ROR(Value: UInt16; Shift: UInt8): UInt16;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
     MOV   AX,   Value
@@ -1384,7 +1508,8 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function ROR(Value: UInt32; Shift: UInt8): UInt32;{$IFNDEF PurePascal}register; assembler;
+Function ROR(Value: UInt32; Shift: UInt8): UInt32;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
     MOV   EAX,  Value
@@ -1401,7 +1526,8 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function ROR(Value: UInt64; Shift: UInt8): UInt64;{$IFNDEF PurePascal}register; assembler;
+Function ROR(Value: UInt64; Shift: UInt8): UInt64;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
     MOV   RAX,  Value
@@ -1485,7 +1611,8 @@ end;
 ================================================================================
 -------------------------------------------------------------------------------}
 
-Function RCLCarry(Value: UInt8; Shift: UInt8; var CF: ByteBool): UInt8;{$IFNDEF PurePascal}register; assembler;
+Function RCLCarry(Value: UInt8; Shift: UInt8; var CF: ByteBool): UInt8;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
     MOV     AL,   Value
@@ -1519,7 +1646,8 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function RCLCarry(Value: UInt16; Shift: UInt8; var CF: ByteBool): UInt16;{$IFNDEF PurePascal}register; assembler;
+Function RCLCarry(Value: UInt16; Shift: UInt8; var CF: ByteBool): UInt16;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
     MOV   AX,   Value
@@ -1553,7 +1681,8 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function RCLCarry(Value: UInt32; Shift: UInt8; var CF: ByteBool): UInt32;{$IFNDEF PurePascal}register; assembler;
+Function RCLCarry(Value: UInt32; Shift: UInt8; var CF: ByteBool): UInt32;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
     MOV   EAX,  Value
@@ -1587,7 +1716,8 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function RCLCarry(Value: UInt64; Shift: UInt8; var CF: ByteBool): UInt64;{$IFNDEF PurePascal}register; assembler;
+Function RCLCarry(Value: UInt64; Shift: UInt8; var CF: ByteBool): UInt64;
+{$IFNDEF PurePascal}
 {$IFDEF x64}
 asm
     MOV   RAX,  Value
@@ -1809,7 +1939,8 @@ end;
 ================================================================================
 -------------------------------------------------------------------------------}
 
-Function RCRCarry(Value: UInt8; Shift: UInt8; var CF: ByteBool): UInt8;{$IFNDEF PurePascal}register; assembler;
+Function RCRCarry(Value: UInt8; Shift: UInt8; var CF: ByteBool): UInt8;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
     MOV   AL,   Value
@@ -1843,7 +1974,8 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function RCRCarry(Value: UInt16; Shift: UInt8; var CF: ByteBool): UInt16;{$IFNDEF PurePascal}register; assembler;
+Function RCRCarry(Value: UInt16; Shift: UInt8; var CF: ByteBool): UInt16;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
     MOV   AX,   Value
@@ -1877,7 +2009,8 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function RCRCarry(Value: UInt32; Shift: UInt8; var CF: ByteBool): UInt32;{$IFNDEF PurePascal}register; assembler;
+Function RCRCarry(Value: UInt32; Shift: UInt8; var CF: ByteBool): UInt32;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
     MOV   EAX,  Value
@@ -1911,7 +2044,8 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function RCRCarry(Value: UInt64; Shift: UInt8; var CF: ByteBool): UInt64;{$IFNDEF PurePascal}register; assembler;
+Function RCRCarry(Value: UInt64; Shift: UInt8; var CF: ByteBool): UInt64;
+{$IFNDEF PurePascal}
 {$IFDEF x64}
 asm
     MOV   RAX,  Value
@@ -2131,7 +2265,8 @@ end;
 ================================================================================
 -------------------------------------------------------------------------------}
 
-Function SAL(Value: UInt8; Shift: UInt8): UInt8;{$IFNDEF PurePascal}register; assembler;
+Function SAL(Value: UInt8; Shift: UInt8): UInt8;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
     MOV   AL,   Value
@@ -2147,7 +2282,8 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function SAL(Value: UInt16; Shift: UInt8): UInt16;{$IFNDEF PurePascal}register; assembler;
+Function SAL(Value: UInt16; Shift: UInt8): UInt16;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
     MOV   AX,   Value
@@ -2163,7 +2299,8 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function SAL(Value: UInt32; Shift: UInt8): UInt32;{$IFNDEF PurePascal}register; assembler;
+Function SAL(Value: UInt32; Shift: UInt8): UInt32;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
     MOV   EAX,  Value
@@ -2179,7 +2316,8 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function SAL(Value: UInt64; Shift: UInt8): UInt64;{$IFNDEF PurePascal}register; assembler;
+Function SAL(Value: UInt64; Shift: UInt8): UInt64;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
     MOV   RAX,  Value
@@ -2254,7 +2392,8 @@ end;
 ================================================================================
 -------------------------------------------------------------------------------}
 
-Function SAR(Value: UInt8; Shift: UInt8): UInt8;{$IFNDEF PurePascal}register; assembler;
+Function SAR(Value: UInt8; Shift: UInt8): UInt8;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
     MOV   AL,   Value
@@ -2274,7 +2413,8 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function SAR(Value: UInt16; Shift: UInt8): UInt16;{$IFNDEF PurePascal}register; assembler;
+Function SAR(Value: UInt16; Shift: UInt8): UInt16;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
     MOV   AX,   Value
@@ -2294,7 +2434,8 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function SAR(Value: UInt32; Shift: UInt8): UInt32;{$IFNDEF PurePascal}register; assembler;
+Function SAR(Value: UInt32; Shift: UInt8): UInt32;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
     MOV   EAX,  Value
@@ -2314,7 +2455,8 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function SAR(Value: UInt64; Shift: UInt8): UInt64;{$IFNDEF PurePascal}register; assembler;
+Function SAR(Value: UInt64; Shift: UInt8): UInt64;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
     MOV   RAX,  Value
@@ -2402,7 +2544,8 @@ end;
 ================================================================================
 -------------------------------------------------------------------------------}
 
-Function EndianSwap(Value: UInt16): UInt16;{$IFNDEF PurePascal}register; assembler;
+Function EndianSwap(Value: UInt16): UInt16;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
     MOV   AX,   Value
@@ -2417,7 +2560,8 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function EndianSwap(Value: UInt32): UInt32;{$IFNDEF PurePascal}register; assembler;
+Function EndianSwap(Value: UInt32): UInt32;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
     MOV   EAX,  Value
@@ -2433,7 +2577,8 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function EndianSwap(Value: UInt64): UInt64;{$IFNDEF PurePascal}register; assembler;
+Function EndianSwap(Value: UInt64): UInt64;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
     MOV   RAX,  Value
@@ -2475,7 +2620,8 @@ end;
 
 //==============================================================================
 
-procedure EndianSwap(var Buffer; Size: TMemSize);{$IFNDEF PurePascal}register; assembler;
+procedure EndianSwap(var Buffer; Size: TMemSize);
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
   {$IFDEF Windows}
@@ -2561,7 +2707,8 @@ end;
 ================================================================================
 -------------------------------------------------------------------------------}
 
-Function BT(Value: UInt8; Bit: UInt8): ByteBool;{$IFNDEF PurePascal}register; assembler;
+Function BT(Value: UInt8; Bit: UInt8): ByteBool;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
   {$IFDEF Windows}
@@ -2585,7 +2732,8 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function BT(Value: UInt16; Bit: UInt8): ByteBool;{$IFNDEF PurePascal}register; assembler;
+Function BT(Value: UInt16; Bit: UInt8): ByteBool;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
   {$IFDEF Windows}
@@ -2606,7 +2754,8 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function BT(Value: UInt32; Bit: UInt8): ByteBool;{$IFNDEF PurePascal}register; assembler;
+Function BT(Value: UInt32; Bit: UInt8): ByteBool;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
   {$IFDEF Windows}
@@ -2627,7 +2776,8 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function BT(Value: UInt64; Bit: UInt8): ByteBool;{$IFNDEF PurePascal}register; assembler;
+Function BT(Value: UInt64; Bit: UInt8): ByteBool;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
   {$IFDEF Windows}
@@ -2661,7 +2811,8 @@ end;
 ================================================================================
 -------------------------------------------------------------------------------}
 
-Function BTS(var Value: UInt8; Bit: UInt8): ByteBool;{$IFNDEF PurePascal}register; assembler;
+Function BTS(var Value: UInt8; Bit: UInt8): ByteBool;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
   {$IFDEF Windows}
@@ -2692,7 +2843,8 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function BTS(var Value: UInt16; Bit: UInt8): ByteBool;{$IFNDEF PurePascal}register; assembler;
+Function BTS(var Value: UInt16; Bit: UInt8): ByteBool;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
   {$IFDEF Windows}
@@ -2717,7 +2869,8 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function BTS(var Value: UInt32; Bit: UInt8): ByteBool;{$IFNDEF PurePascal}register; assembler;
+Function BTS(var Value: UInt32; Bit: UInt8): ByteBool;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
   {$IFDEF Windows}
@@ -2742,7 +2895,8 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function BTS(var Value: UInt64; Bit: UInt8): ByteBool;{$IFNDEF PurePascal}register; assembler;
+Function BTS(var Value: UInt64; Bit: UInt8): ByteBool;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
   {$IFDEF Windows}
@@ -2779,7 +2933,8 @@ end;
 ================================================================================
 -------------------------------------------------------------------------------}
 
-Function BTR(var Value: UInt8; Bit: UInt8): ByteBool;{$IFNDEF PurePascal}register; assembler;
+Function BTR(var Value: UInt8; Bit: UInt8): ByteBool;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
   {$IFDEF Windows}
@@ -2810,7 +2965,8 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function BTR(var Value: UInt16; Bit: UInt8): ByteBool;{$IFNDEF PurePascal}register; assembler;
+Function BTR(var Value: UInt16; Bit: UInt8): ByteBool;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
   {$IFDEF Windows}
@@ -2835,7 +2991,8 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function BTR(var Value: UInt32; Bit: UInt8): ByteBool;{$IFNDEF PurePascal}register; assembler;
+Function BTR(var Value: UInt32; Bit: UInt8): ByteBool;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
   {$IFDEF Windows}
@@ -2860,7 +3017,8 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function BTR(var Value: UInt64; Bit: UInt8): ByteBool;{$IFNDEF PurePascal}register; assembler;
+Function BTR(var Value: UInt64; Bit: UInt8): ByteBool;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
   {$IFDEF Windows}
@@ -2897,7 +3055,8 @@ end;
 ================================================================================
 -------------------------------------------------------------------------------}
 
-Function BTC(var Value: UInt8; Bit: UInt8): ByteBool;{$IFNDEF PurePascal}register; assembler;
+Function BTC(var Value: UInt8; Bit: UInt8): ByteBool;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
   {$IFDEF Windows}
@@ -2928,7 +3087,8 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function BTC(var Value: UInt16; Bit: UInt8): ByteBool;{$IFNDEF PurePascal}register; assembler;
+Function BTC(var Value: UInt16; Bit: UInt8): ByteBool;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
   {$IFDEF Windows}
@@ -2953,7 +3113,8 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function BTC(var Value: UInt32; Bit: UInt8): ByteBool;{$IFNDEF PurePascal}register; assembler;
+Function BTC(var Value: UInt32; Bit: UInt8): ByteBool;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
   {$IFDEF Windows}
@@ -2978,7 +3139,8 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function BTC(var Value: UInt64; Bit: UInt8): ByteBool;{$IFNDEF PurePascal}register; assembler;
+Function BTC(var Value: UInt64; Bit: UInt8): ByteBool;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
   {$IFDEF Windows}
@@ -3051,7 +3213,8 @@ end;
 ================================================================================
 -------------------------------------------------------------------------------}
 
-Function BSF(Value: UInt8): Int32;{$IFNDEF PurePascal}register; assembler;
+Function BSF(Value: UInt8): Int32;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
     XOR   RAX,  RAX
@@ -3086,7 +3249,8 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function BSF(Value: UInt16): Int32;{$IFNDEF PurePascal}register; assembler;
+Function BSF(Value: UInt16): Int32;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
     XOR   RAX,  RAX
@@ -3119,7 +3283,8 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function BSF(Value: UInt32): Int32;{$IFNDEF PurePascal}register; assembler;
+Function BSF(Value: UInt32): Int32;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
   {$IFDEF Windows}
@@ -3150,7 +3315,8 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function BSF(Value: UInt64): Int32;{$IFNDEF PurePascal}register; assembler;
+Function BSF(Value: UInt64): Int32;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
   {$IFDEF Windows}
@@ -3198,7 +3364,8 @@ end;
 ================================================================================
 -------------------------------------------------------------------------------}
 
-Function BSR(Value: UInt8): Int32; {$IFNDEF PurePascal}register; assembler;
+Function BSR(Value: UInt8): Int32;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
     XOR   RAX,  RAX
@@ -3233,7 +3400,8 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function BSR(Value: UInt16): Int32;{$IFNDEF PurePascal}register; assembler;
+Function BSR(Value: UInt16): Int32;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
     XOR   RAX,  RAX
@@ -3266,7 +3434,8 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function BSR(Value: UInt32): Int32;{$IFNDEF PurePascal}register; assembler;
+Function BSR(Value: UInt32): Int32;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
   {$IFDEF Windows}
@@ -3297,7 +3466,8 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function BSR(Value: UInt64): Int32;{$IFNDEF PurePascal}register; assembler;
+Function BSR(Value: UInt64): Int32;
+{$IFNDEF PurePascal}
 asm
 {$IFDEF x64}
   {$IFDEF Windows}
@@ -3420,7 +3590,7 @@ end;
 Function Fce_PopCount_64_Pas(Value: UInt64): Int32; register;
 {$IFDEF UseLookupTable}
 begin
-{$IFDEF 64bit}
+{$IFDEF CPU64bit}
 Result := PopCountTable[UInt8(Value)] + PopCountTable[UInt8(Value shr 8)] +
   PopCountTable[UInt8(Value shr 16)] + PopCountTable[UInt8(Value shr 24)] +
   PopCountTable[UInt8(Value shr 32)] + PopCountTable[UInt8(Value shr 40)] +
@@ -3444,7 +3614,7 @@ end;
 
 //==============================================================================
 
-{$IFNDEF PurePascal}
+{$IFDEF ASM_Extensions}
 
 Function Fce_PopCount_8_Asm(Value: UInt8): Int32; register; assembler;
 asm
@@ -4370,7 +4540,7 @@ end;
 
 //==============================================================================
 
-{$IFNDEF PurePascal}
+{$IFDEF ASM_Extensions}
 
 Function Fce_LZCount_8_Asm(Value: UInt8): Int32; register; assembler;
 asm
@@ -4557,7 +4727,7 @@ end;
 
 //==============================================================================
 
-{$IFNDEF PurePascal}
+{$IFDEF ASM_Extensions}
 
 Function Fce_TZCount_8_Asm(Value: UInt8): Int32; register; assembler;
 asm
@@ -4744,7 +4914,7 @@ end;
 
 //==============================================================================
 
-{$IFNDEF PurePascal}
+{$IFDEF ASM_Extensions}
 
 Function Fce_ExtractBits_8_Asm(Value: UInt8; Start, Length: UInt8): UInt8; register; assembler;
 asm
@@ -5006,7 +5176,7 @@ end;
 
 //==============================================================================
 
-{$IFNDEF PurePascal}
+{$IFDEF ASM_Extensions}
 
 Function Fce_ParallelBitsExtract_8_Asm(Value, Mask: UInt8): UInt8; register; assembler;
 asm
@@ -5225,7 +5395,7 @@ end;
 
 //==============================================================================
 
-{$IFNDEF PurePascal}
+{$IFDEF ASM_Extensions}
 
 Function Fce_ParallelBitsDeposit_8_Asm(Value, Mask: UInt8): UInt8; register; assembler;
 asm
@@ -5372,7 +5542,7 @@ end;
     General data <-> Hex string conversions - auxiliary functions
 -------------------------------------------------------------------------------}
 
-Function DataToHexStr_SplitBytes(Split: THexStringSplit): Integer;
+Function DataToHexStr_SplitChars(Split: THexStringSplit): Integer;
 begin
 case Split of
   hssNibble:  Result := 1;
@@ -5389,36 +5559,39 @@ else
 end;
 end;
 
-//------------------------------------------------------------------------------
+{-------------------------------------------------------------------------------
+    General data <-> Hex string conversions - main implementation
+-------------------------------------------------------------------------------}
 
 Function DataToHexStr(const Buffer; Size: TMemSize; HexStringFormat: THexStringFormat): String;
 var
   SplitCnt:   Integer;
   i:          TMemSize;
-  ResPos:     Integer;
+  CharResPos: Integer;
   DataResPos: TMemSize;
-  TempStr:    String;
   BuffPtr:    PByte;
+  TempStr:    String;
 
   procedure PutChar(NewChar: Char);
   begin
     If (SplitCnt > 0) and (DataResPos > 0) and ((DataResPos mod TMemSize(SplitCnt)) = 0) then
-      Inc(ResPos);
-    Result[ResPos] := NewChar;
-    Inc(ResPos);
+      Inc(CharResPos);
+    Result[CharResPos] := NewChar;
+    Inc(CharResPos);
     Inc(DataResPos)
   end;
   
 begin
 If Size <> 0 then
   begin
-    SplitCnt := DataToHexStr_SplitBytes(HexStringFormat.Split);
+    // preallocate resulting string and then just fill it
+    SplitCnt := DataToHexStr_SplitChars(HexStringFormat.Split);
     If SplitCnt > 0 then
       Result := StringOfChar(HexStringFormat.SplitChar,(UInt64(Size) * 2) +
-                             (Pred(UInt64(Size) * 2) div TMemSize(SplitCnt)))
+                             (Pred(UInt64(Size) * 2) div UInt64(SplitCnt)))
     else
       SetLength(Result,Size * 2);
-    ResPos := 1;
+    CharResPos := 1;
     DataResPos := 0;
     BuffPtr := @Buffer;
     For i := 0 to Pred(Size) do
@@ -5445,30 +5618,29 @@ Function DataToHexStr(Arr: array of UInt8; HexStringFormat: THexStringFormat): S
 var
   SplitCnt:   Integer;
   i:          Integer;  
-  ResPos:     Integer;
+  CharResPos:  Integer;
   DataResPos: TMemSize;
   TempStr:    String;
 
   procedure PutChar(NewChar: Char);
   begin
-    If (SplitCnt > 0) then
-      If(DataResPos > 0) and ((DataResPos mod TMemSize(SplitCnt)) = 0) then
-        Inc(ResPos);
-    Result[ResPos] := NewChar;
-    Inc(ResPos);
+    If (SplitCnt > 0) and (DataResPos > 0) and ((DataResPos mod TMemSize(SplitCnt)) = 0) then
+      Inc(CharResPos);
+    Result[CharResPos] := NewChar;
+    Inc(CharResPos);
     Inc(DataResPos)
   end;
   
 begin
 If Length(Arr) <> 0 then
   begin
-    SplitCnt := DataToHexStr_SplitBytes(HexStringFormat.Split);
+    SplitCnt := DataToHexStr_SplitChars(HexStringFormat.Split);
     If SplitCnt > 0 then
       Result := StringOfChar(HexStringFormat.SplitChar,(Length(Arr) * 2) +
-                            (Pred(Length(Arr) * 2) div SplitCnt))
+                             (Pred(Length(Arr) * 2) div SplitCnt))
     else
       SetLength(Result,Length(Arr) * 2);
-    ResPos := 1;
+    CharResPos := 1;
     DataResPos := 0;
     For i := Low(Arr) to High(Arr) do
       begin
@@ -5518,7 +5690,7 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function DataToHexStr(Arr: array of UInt8): String; overload;{$IFDEF Inline} inline; {$ENDIF}
+Function DataToHexStr(Arr: array of UInt8): String; overload;
 begin
 Result := DataToHexStr(Arr,DefHexStringFormat);
 end;
@@ -5546,9 +5718,9 @@ If Length(Str) > 0 then
   begin
     If Size <> 0 then
       begin
-        Cntr := 2;
+        Cntr := 2;        // position in StrBuff just behind $
         BuffPtr := @Buffer;
-        StrBuff := '$  ';  // two spaces
+        StrBuff := '$  '; // two spaces
         Result := 0;
         For i := 1 to Length(Str) do
           begin
@@ -5560,12 +5732,13 @@ If Length(Str) > 0 then
                 Inc(Cntr);
                 If Cntr > 3 then
                   begin
-                    Cntr := 2;                  
-                    BuffPtr^ := UInt8(StrToInt(StrBuff));
+                    If Result < Size then
+                      BuffPtr^ := UInt8(StrToInt(StrBuff))
+                    else
+                      raise EBOBufferTooSmall.CreateFmt('HexStrToData: Buffer too small (%d).',[Size]);
+                    Cntr := 2;
                     Inc(BuffPtr);                    
                     Inc(Result);
-                    If Result > Size then
-                      raise EBOBufferTooSmall.Create('HexStrToData: Buffer too small.');
                   end;
               end
             else EBOInvalidCharacter.CreateFmt('HexStrToData: Invalid character (#%d).',[Ord(Str[i])]);
@@ -5590,34 +5763,37 @@ end;
 
 Function HexStrToData(const Str: String; HexStringFormat: THexStringFormat): TArrayOfBytes;
 var
-  Len:    Integer;
+  ByteCnt:  Integer;
 begin
-Len := HexStrToData(Str,nil^,0,HexStringFormat);
-SetLength(Result,Len);
-Len := HexStrToData(Str,Result[0],Length(Result),HexStringFormat);
-If Len <> Length(Result) then
-  SetLength(Result,Len);
+ByteCnt := HexStrToData(Str,nil^,0,HexStringFormat);
+SetLength(Result,ByteCnt);
+If ByteCnt > 0 then
+  begin
+    ByteCnt := HexStrToData(Str,Result[0],Length(Result),HexStringFormat);
+    If ByteCnt <> Length(Result) then
+      SetLength(Result,ByteCnt);
+  end;
 end;
  
 //------------------------------------------------------------------------------
 
-Function HexStrToData(const Str: String; out Buffer; Size: TMemSize; Split: THexStringSplit): TMemSize;
+Function HexStrToData(const Str: String; out Buffer; Size: TMemSize; SplitChar: Char): TMemSize;
 var
   Format: THexStringFormat;
 begin
 Format := DefHexStringFormat;
-Format.Split := Split;
+Format.SplitChar := SplitChar;
 Result := HexStrToData(Str,Buffer,Size,Format);
 end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function HexStrToData(const Str: String; Split: THexStringSplit): TArrayOfBytes;
+Function HexStrToData(const Str: String; SplitChar: Char): TArrayOfBytes;
 var
   Format: THexStringFormat;
 begin
 Format := DefHexStringFormat;
-Format.Split := Split;
+Format.SplitChar := SplitChar;
 Result := HexStrToData(Str,Format);
 end;
 
@@ -5661,23 +5837,23 @@ end;
 
 //------------------------------------------------------------------------------
 
-Function TryHexStrToData(const Str: String; out Buffer; var Size: TMemSize; Split: THexStringSplit): Boolean;
+Function TryHexStrToData(const Str: String; out Buffer; var Size: TMemSize; SplitChar: Char): Boolean;
 var
   Format: THexStringFormat;
 begin
 Format := DefHexStringFormat;
-Format.Split := Split;
+Format.SplitChar := SplitChar;
 Result := TryHexStrToData(Str,Buffer,Size,Format);
 end;
  
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function TryHexStrToData(const Str: String; out Arr: TArrayOfBytes; Split: THexStringSplit): Boolean;
+Function TryHexStrToData(const Str: String; out Arr: TArrayOfBytes; SplitChar: Char): Boolean;
 var
   Format: THexStringFormat;
 begin
 Format := DefHexStringFormat;
-Format.Split := Split;
+Format.SplitChar := SplitChar;
 Result := TryHexStrToData(Str,Arr,Format);
 end;
 
@@ -5701,22 +5877,27 @@ end;
 ================================================================================
 -------------------------------------------------------------------------------}
 
-Function CompareData(const A; SizeA: TMemSize; const B; SizeB: TMemSize; AllowSizeDiff: Boolean = True): Integer;
-var
-  i:    TMemSize;
-  PtrA: PByte;
-  PtrB: PByte;
-begin
-Result := 0;
-If (SizeA < SizeB) and AllowSizeDiff then
-  Result := -1
-else If (SizeA > SizeB) and AllowSizeDiff then
-  Result := +1
-else If SizeA = SizeB then
+Function CompareData(const A; SizeA: TMemSize; const B; SizeB: TMemSize; CompareMethod: TCompareMethod): Integer;
+
+  Function CompareBytes: Integer;
+
+    Function MemSizeMin(A,B: TMemSize): TMemSize;{$IFDEF CanInline} inline; {$ENDIF}
+    begin
+      If A < B then
+        Result := A
+      else
+        Result := B;
+    end;
+
+  var
+    i:    TMemSize;
+    PtrA: PByte;
+    PtrB: PByte;
   begin
+    Result := 0;
     PtrA := @A;
     PtrB := @B;
-    For i := 1 to SizeA do  // when size is zero, this will execute no cycle
+    For i := 1 to MemSizeMin(SizeA,SizeB) do  // when either size is zero, this will execute no cycle
       begin
         If PtrA^ <> PtrB^ then
           begin
@@ -5729,24 +5910,59 @@ else If SizeA = SizeB then
         Inc(PtrA);
         Inc(PtrB);
       end;
-  end
-else raise EBOSizeMismatch.CreateFmt('CompareData: Mismatch in data sizes (%d,%d).',[SizeA,SizeB]);
+  end;
+
+  Function CompareSizes: Integer;
+  begin
+    If SizeA < SizeB then
+      Result := -1
+    else If SizeA > SizeB then
+      Result := +1
+    else
+      Result := 0;
+  end;
+
+begin
+case CompareMethod of
+  cmDataSize:   begin
+                  Result := CompareBytes;
+                  If Result = 0 then
+                    Result := CompareSizes;
+                end;
+  cmEqSizeData: If SizeA = SizeB then
+                  begin
+                    Result := CompareSizes;
+                    If Result = 0 then
+                      Result := CompareBytes;
+                  end
+                else raise EBOSizeMismatch.CreateFmt('CompareData: Mismatch in data sizes (%d,%d).',[SizeA,SizeB]);
+else
+ {cmSizeData}
+  Result := CompareSizes;
+  If Result = 0 then
+    Result := CompareBytes;
+end;
 end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Function CompareData(A,B: array of UInt8; AllowSizeDiff: Boolean = True): Integer;
-var
-  i:  Integer;
-begin
-Result := 0;
-If (Length(A) < Length(B)) and AllowSizeDiff then
-  Result := -1
-else If (Length(A) > Length(B)) and AllowSizeDiff then
-  Result := +1
-else If Length(A) = Length(B) then
+Function CompareData(A,B: array of UInt8; CompareMethod: TCompareMethod): Integer;
+
+  Function CompareItems: Integer;
+
+    Function IntegerMin(A,B: Integer): Integer;{$IFDEF CanInline} inline; {$ENDIF}
+    begin
+      If A < B then
+        Result := A
+      else
+        Result := B;
+    end;
+    
+  var
+    i:  Integer;
   begin
-    For i := Low(A) to High(A) do
+    Result := 0;
+    For i := 0 to IntegerMin(High(A),High(B)) do
       If A[i] <> B[i] then
         begin
           If A[i] < B[i] then
@@ -5755,8 +5971,58 @@ else If Length(A) = Length(B) then
             Result := +1;
           Exit;
         end;
-  end
-else EBOSizeMismatch.CreateFmt('CompareData: Mismatch in data sizes (%d,%d).',[Length(A),Length(B)]);
+  end;
+
+  Function CompareSizes: Integer;
+  begin
+    If Length(A) < Length(B) then
+      Result := -1
+    else If Length(A) > Length(B) then
+      Result := +1
+    else
+      Result := 0;
+  end;
+
+begin
+case CompareMethod of
+  cmDataSize:   begin
+                  Result := CompareItems;
+                  If Result = 0 then
+                    Result := CompareSizes;
+                end;
+  cmEqSizeData: If Length(A) = Length(B) then
+                  begin
+                    Result := CompareSizes;
+                    If Result = 0 then
+                      Result := CompareItems;
+                  end
+                else raise EBOSizeMismatch.CreateFmt('CompareData: Mismatch in data sizes (%d,%d).',[Length(A),Length(B)]);
+else
+ {cmSizeData}
+  Result := CompareSizes;
+  If Result = 0 then
+    Result := CompareItems;
+end;
+end;
+
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+Function CompareData(const A; SizeA: TMemSize; const B; SizeB: TMemSize; AllowSizeDiff: Boolean = True): Integer;
+begin
+If AllowSizeDiff then
+  Result := CompareData(A,SizeA,B,SizeB,cmSizeData)
+else
+  Result := CompareData(A,SizeA,B,SizeB,cmEqSizeData);
+end;
+
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+Function CompareData(A,B: array of UInt8; AllowSizeDiff: Boolean = True): Integer;
+begin
+If AllowSizeDiff then
+  Result := CompareData(A,B,cmSizeData)
+else
+  Result := CompareData(A,B,cmEqSizeData);
 end;
 
 {-------------------------------------------------------------------------------
@@ -5767,7 +6033,7 @@ end;
 
 Function SameData(const A; SizeA: TMemSize; const B; SizeB: TMemSize): Boolean;
 const
-  SD_BYTE_COEF = {$IFDEF 64bit}SizeOf(UInt64){$ELSE}SizeOf(UInt32){$ENDIF};
+  SD_BYTE_COEF = {$IFDEF CPU64bit}SizeOf(UInt64){$ELSE}SizeOf(UInt32){$ENDIF};
 var
   i:    TMemSize;
   PtrA: Pointer;
@@ -5783,7 +6049,7 @@ If SizeA = SizeB then
       begin
         For i := 1 to (SizeA div SD_BYTE_COEF) do
           begin
-          {$IFDEF 64bit}
+          {$IFDEF CPU64bit}
             If PUInt64(PtrA)^ <> PUInt64(PtrB)^ then
           {$ELSE}
             If PUInt32(PtrA)^ <> PUInt32(PtrB)^ then
@@ -5811,31 +6077,52 @@ If SizeA = SizeB then
         Inc(PByte(PtrB));
       end;
   end
-else Result := False;
+else Result := False; // buffers differ in size
 end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 Function SameData(A,B: array of UInt8): Boolean;
 var
-  i:  Integer;
+  i:        Integer;
+  APacked:  Boolean;
+  BPacked:  Boolean;
 begin
-{
-  Let's not assume the bytes are packed in the memory and compare individual
-  array entries separately.
-}
+// Let's not assume the bytes are inherently packed in the memory...
 If Length(A) = Length(B) then
   begin
-    Result := True;
     If Length(A) > 0 then
-      For i := Low(A) to High(A) do
-        If A[i] <> B[i] then
+      begin
+       If Length(A) > 128 then
           begin
-            Result := False;
-            Break{For i};
+          {$IFDEF FPCDWM}{$PUSH}W4055{$ENDIF}
+            APacked := PtrUInt(@A[1]) - PtrUInt(@A[0]) <= 1;
+            BPacked := PtrUInt(@B[1]) - PtrUInt(@B[0]) <= 1;
+          {$IFDEF FPCDWM}{$POP}{$ENDIF}
+          end
+        else
+          begin
+            APacked := False;
+            BPacked := False;
           end;
+        If APacked and BPacked then
+          // arrays are packed, compare them as buffers
+          Result := SameData(A[Low(A)],Length(A),B[Low(B)],Length(B))
+        else
+          begin
+            // array are not packed, compare item by item
+            Result := True;
+            For i := Low(A) to High(A) do
+              If A[i] <> B[i] then
+                begin
+                  Result := False;
+                  Break{For i};
+                end;
+          end;
+      end
+    else Result := True;  // both arrays are empty
   end
-else Result := False;
+else Result := False; // arrays differ in length
 end;
 
 {-------------------------------------------------------------------------------
@@ -5890,133 +6177,213 @@ end;
 
 {-------------------------------------------------------------------------------
 ================================================================================
-                            Unit implementation info
+                           Pointer arithmetic helpers
 ================================================================================
 -------------------------------------------------------------------------------}
 
-{$IFDEF FPCDWM}{$PUSH}W5024{$ENDIF}
-Function BitOpsFunctionIsAsm(Func: TBitOpsFunctions): Boolean;
+{$IFDEF OverflowChecks}{$Q-}{$ENDIF}
+
+Function PtrAdvance(Ptr: Pointer; Offset: PtrInt): Pointer;
 begin
-{$IFDEF PurePascal}
+{$IFDEF FPCDWM}{$PUSH}W4055{$ENDIF}
+Result := Pointer(PtrUInt(Ptr) + PtrUInt(Offset));
+{$IFDEF FPCDWM}{$POP}{$ENDIF}
+end;
+
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+Function PtrAdvance(Ptr: Pointer; Count: Integer; Stride: TMemSize): Pointer;
+begin
+{$IFDEF FPCDWM}{$PUSH}W4055{$ENDIF}
+Result := Pointer(PtrUInt(Ptr) + PtrUInt(PtrInt(Count) * PtrInt(Stride)));
+{$IFDEF FPCDWM}{$POP}{$ENDIF}
+end;
+
+{$IFDEF OverflowChecks}{$Q+}{$ENDIF}
+
+//------------------------------------------------------------------------------
+
+procedure PtrAdvanceVar(var Ptr: Pointer; Offset: PtrInt);
+begin
+Ptr := PtrAdvance(Ptr,Offset);
+end;
+
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+procedure PtrAdvanceVar(var Ptr: Pointer; Count: Integer; Stride: TMemSize);
+begin
+Ptr := PtrAdvance(Ptr,Count,Stride);
+end;
+
+{-------------------------------------------------------------------------------
+================================================================================
+                         Unit implementation management
+================================================================================
+-------------------------------------------------------------------------------}
+const
+  UIM_BITOPS_PASCAL_IMPL: array[TUIM_BitOps_Function] of Pointer = (
+    @Fce_PopCount_8_Pas,@Fce_PopCount_16_Pas,@Fce_PopCount_32_Pas,@Fce_PopCount_64_Pas,
+    @Fce_LZCount_8_Pas,@Fce_LZCount_16_Pas,@Fce_LZCount_32_Pas,@Fce_LZCount_64_Pas,
+    @Fce_TZCount_8_Pas,@Fce_TZCount_16_Pas,@Fce_TZCount_32_Pas,@Fce_TZCount_64_Pas,
+    @Fce_ExtractBits_8_Pas,@Fce_ExtractBits_16_Pas,@Fce_ExtractBits_32_Pas,@Fce_ExtractBits_64_Pas,
+    @Fce_ParallelBitsExtract_8_Pas,@Fce_ParallelBitsExtract_16_Pas,@Fce_ParallelBitsExtract_32_Pas,@Fce_ParallelBitsExtract_64_Pas,
+    @Fce_ParallelBitsDeposit_8_Pas,@Fce_ParallelBitsDeposit_16_Pas,@Fce_ParallelBitsDeposit_32_Pas,@Fce_ParallelBitsDeposit_64_Pas);
+
+{$IFDEF ASM_Extensions}
+  UIM_BITOPS_ASSEMBLY_IMPL: array[TUIM_BitOps_Function] of Pointer = (
+    @Fce_PopCount_8_Asm,@Fce_PopCount_16_Asm,@Fce_PopCount_32_Asm,@Fce_PopCount_64_Asm,
+    @Fce_LZCount_8_Asm,@Fce_LZCount_16_Asm,@Fce_LZCount_32_Asm,@Fce_LZCount_64_Asm,
+    @Fce_TZCount_8_Asm,@Fce_TZCount_16_Asm,@Fce_TZCount_32_Asm,@Fce_TZCount_64_Asm,
+    @Fce_ExtractBits_8_Asm,@Fce_ExtractBits_16_Asm,@Fce_ExtractBits_32_Asm,@Fce_ExtractBits_64_Asm,
+    @Fce_ParallelBitsExtract_8_Asm,@Fce_ParallelBitsExtract_16_Asm,@Fce_ParallelBitsExtract_32_Asm,@Fce_ParallelBitsExtract_64_Asm,
+    @Fce_ParallelBitsDeposit_8_Asm,@Fce_ParallelBitsDeposit_16_Asm,@Fce_ParallelBitsDeposit_32_Asm,@Fce_ParallelBitsDeposit_64_Asm);
+{$ENDIF}
+
+//------------------------------------------------------------------------------
+
+Function UIM_GetFunctionVarAddr(Func: TUIM_BitOps_Function): PPointer;
+begin
+case Func of
+  fnPopCount8:              Result := Addr(@Var_PopCount_8);
+  fnPopCount16:             Result := Addr(@Var_PopCount_16);
+  fnPopCount32:             Result := Addr(@Var_PopCount_32);
+  fnPopCount64:             Result := Addr(@Var_PopCount_64);
+  fnLZCount8:               Result := Addr(@Var_LZCount_8);
+  fnLZCount16:              Result := Addr(@Var_LZCount_16);
+  fnLZCount32:              Result := Addr(@Var_LZCount_32);
+  fnLZCount64:              Result := Addr(@Var_LZCount_64);
+  fnTZCount8:               Result := Addr(@Var_TZCount_8);
+  fnTZCount16:              Result := Addr(@Var_TZCount_16);
+  fnTZCount32:              Result := Addr(@Var_TZCount_32);
+  fnTZCount64:              Result := Addr(@Var_TZCount_64);
+  fnExtractBits8:           Result := Addr(@Var_ExtractBits_8);
+  fnExtractBits16:          Result := Addr(@Var_ExtractBits_16);
+  fnExtractBits32:          Result := Addr(@Var_ExtractBits_32);
+  fnExtractBits64:          Result := Addr(@Var_ExtractBits_64);
+  fnParallelBitsExtract8:   Result := Addr(@Var_ParallelBitsExtract_8);
+  fnParallelBitsExtract16:  Result := Addr(@Var_ParallelBitsExtract_16);
+  fnParallelBitsExtract32:  Result := Addr(@Var_ParallelBitsExtract_32);
+  fnParallelBitsExtract64:  Result := Addr(@Var_ParallelBitsExtract_64);
+  fnParallelBitsDeposit8:   Result := Addr(@Var_ParallelBitsDeposit_8);
+  fnParallelBitsDeposit16:  Result := Addr(@Var_ParallelBitsDeposit_16);
+  fnParallelBitsDeposit32:  Result := Addr(@Var_ParallelBitsDeposit_32);
+  fnParallelBitsDeposit64:  Result := Addr(@Var_ParallelBitsDeposit_64);
+else
+  raise EBOUnknownFunction.CreateFmt('UIM_GetFunctionVarAddr: Unknown function %d.',[Ord(Func)]);
+end;
+end;
+
+//------------------------------------------------------------------------------
+
+{$IFNDEF ASM_Extensions}{$IFDEF FPCDWM}{$PUSH}W5024{$ENDIF}{$ENDIF}
+Function UIM_CheckASMSupport(Func: TUIM_BitOps_Function): Boolean;
+begin
 Result := False;
+{$IFDEF ASM_Extensions}
+with TSimpleCPUID.Create do
+try
+  case Func of
+    fnPopCount8,fnPopCount16,fnPopCount32,fnPopCount64:
+      Result := Info.SupportedExtensions.POPCNT;
+    fnLZCount8,fnLZCount16,fnLZCount32,fnLZCount64:
+      Result := Info.ExtendedProcessorFeatures.LZCNT;
+    fnTZCount8,fnTZCount16,fnTZCount32,fnTZCount64,
+    fnExtractBits8,fnExtractBits16,fnExtractBits32,fnExtractBits64:
+      Result := Info.ProcessorFeatures.BMI1;
+    fnParallelBitsExtract8,fnParallelBitsExtract16,fnParallelBitsExtract32,
+    fnParallelBitsDeposit8,fnParallelBitsDeposit16,fnParallelBitsDeposit32:
+      Result := Info.ProcessorFeatures.BMI2;
+    fnParallelBitsExtract64:
+      Result := Info.ProcessorFeatures.BMI2{$IFNDEF x64} and Info.SupportedExtensions.POPCNT{$ENDIF};
+    fnParallelBitsDeposit64:
+      Result := Info.ProcessorFeatures.BMI2{$IFNDEF x64} and Info.SupportedExtensions.POPCNT and Info.ProcessorFeatures.CMOV{$ENDIF};
+  else
+    raise EBOUnknownFunction.CreateFmt('UIM_CheckASMSupport: Unknown function (%d).',[Ord(Func)]);
+  end;
+finally
+  Free;
+end;
+{$ENDIF}
+end;
+{$IFNDEF ASM_Extensions}{$IFDEF FPCDWM}{$POP}{$ENDIF}{$ENDIF}
+
+//==============================================================================
+
+Function UIM_BitOps_AvailableFuncImpl(Func: TUIM_BitOps_Function): TUIM_BitOps_Implementations;
+begin
+case Func of
+  fnPopCount8,fnPopCount16,fnPopCount32,fnPopCount64,
+  fnLZCount8,fnLZCount16,fnLZCount32,fnLZCount64,
+  fnTZCount8,fnTZCount16,fnTZCount32,fnTZCount64,
+  fnExtractBits8,fnExtractBits16,fnExtractBits32,fnExtractBits64,
+  fnParallelBitsExtract8,fnParallelBitsExtract16,fnParallelBitsExtract32,fnParallelBitsExtract64,
+  fnParallelBitsDeposit8,fnParallelBitsDeposit16,fnParallelBitsDeposit32,fnParallelBitsDeposit64:
+    Result := [imNone,imPascal{$IFDEF ASM_Extensions},imAssembly{$ENDIF}];
+else
+  raise EBOUnknownFunction.CreateFmt('UIM_BitOps_AvailableFuncImpl: Unknown function (%d).',[Ord(Func)]);
+end;
+end;
+
+//------------------------------------------------------------------------------
+
+Function UIM_BitOps_SupportedFuncImpl(Func: TUIM_BitOps_Function): TUIM_BitOps_Implementations;
+begin
+case Func of
+  fnPopCount8,fnPopCount16,fnPopCount32,fnPopCount64,
+  fnLZCount8,fnLZCount16,fnLZCount32,fnLZCount64,
+  fnTZCount8,fnTZCount16,fnTZCount32,fnTZCount64,
+  fnExtractBits8,fnExtractBits16,fnExtractBits32,fnExtractBits64,
+  fnParallelBitsExtract8,fnParallelBitsExtract16,fnParallelBitsExtract32,fnParallelBitsExtract64,
+  fnParallelBitsDeposit8,fnParallelBitsDeposit16,fnParallelBitsDeposit32,fnParallelBitsDeposit64:
+    If UIM_CheckASMSupport(Func) then
+      Result := [imNone,imPascal,imAssembly]
+    else
+      Result := [imNone,imPascal];
+else
+  raise EBOUnknownFunction.CreateFmt('UIM_BitOps_SupportedFuncImpl: Unknown function (%d).',[Ord(Func)]);
+end;
+end;
+
+//------------------------------------------------------------------------------
+
+Function UIM_BitOps_GetFuncImpl(Func: TUIM_BitOps_Function): TUIM_BitOps_Implementation;
+var
+  FuncVarAddr:  PPointer;
+begin
+Result := imNone;
+FuncVarAddr := UIM_GetFunctionVarAddr(Func);
+// no need to check FuncVarAddr for validity
+If Assigned(FuncVarAddr^) then
+  begin
+    If FuncVarAddr^ = UIM_BITOPS_PASCAL_IMPL[Func] then
+      Result := imPascal
+  {$IFDEF ASM_Extensions}
+    else If FuncVarAddr^ = UIM_BITOPS_ASSEMBLY_IMPL[Func] then
+      Result := imAssembly
+  {$ENDIF};
+  end;
+end;
+
+//------------------------------------------------------------------------------
+
+Function UIM_BitOps_SetFuncImpl(Func: TUIM_BitOps_Function; NewImpl: TUIM_BitOps_Implementation): TUIM_BitOps_Implementation;
+var
+  FuncVarAddr:  PPointer;
+begin
+Result := UIM_BitOps_GetFuncImpl(Func);
+FuncVarAddr := UIM_GetFunctionVarAddr(Func);
+case NewImpl of
+  imPascal:   FuncVarAddr^ := UIM_BITOPS_PASCAL_IMPL[Func];
+{$IFDEF ASM_Extensions}
+  imAssembly: FuncVarAddr^ := UIM_BITOPS_ASSEMBLY_IMPL[Func];
 {$ELSE}
-case Func of
-  fnPopCount8:              Result := @Var_PopCount_8 = @Fce_PopCount_8_Asm;
-  fnPopCount16:             Result := @Var_PopCount_16 = @Fce_PopCount_16_Asm;
-  fnPopCount32:             Result := @Var_PopCount_32 = @Fce_PopCount_32_Asm;
-  fnPopCount64:             Result := @Var_PopCount_64 = @Fce_PopCount_64_Asm;
-  fnLZCount8:               Result := @Var_LZCount_8 = @Fce_LZCount_8_Asm;
-  fnLZCount16:              Result := @Var_LZCount_16 = @Fce_LZCount_16_Asm;
-  fnLZCount32:              Result := @Var_LZCount_32 = @Fce_LZCount_32_Asm;
-  fnLZCount64:              Result := @Var_LZCount_64 = @Fce_LZCount_64_Asm;
-  fnTZCount8:               Result := @Var_TZCount_8 = @Fce_TZCount_8_Asm;
-  fnTZCount16:              Result := @Var_TZCount_16 = @Fce_TZCount_16_Asm;
-  fnTZCount32:              Result := @Var_TZCount_32 = @Fce_TZCount_32_Asm;
-  fnTZCount64:              Result := @Var_TZCount_64 = @Fce_TZCount_64_Asm;
-  fnExtractBits8:           Result := @Var_ExtractBits_8 = @Fce_ExtractBits_8_Asm;
-  fnExtractBits16:          Result := @Var_ExtractBits_16 = @Fce_ExtractBits_16_Asm;
-  fnExtractBits32:          Result := @Var_ExtractBits_32 = @Fce_ExtractBits_32_Asm;
-  fnExtractBits64:          Result := @Var_ExtractBits_64 = @Fce_ExtractBits_64_Asm;
-  fnParallelBitsExtract8:   Result := @Var_ParallelBitsExtract_8 = @Fce_ParallelBitsExtract_8_Asm;
-  fnParallelBitsExtract16:  Result := @Var_ParallelBitsExtract_16 = @Fce_ParallelBitsExtract_16_Asm;
-  fnParallelBitsExtract32:  Result := @Var_ParallelBitsExtract_32 = @Fce_ParallelBitsExtract_32_Asm;
-  fnParallelBitsExtract64:  Result := @Var_ParallelBitsExtract_64 = @Fce_ParallelBitsExtract_64_Asm;
-  fnParallelBitsDeposit8:   Result := @Var_ParallelBitsDeposit_8 = @Fce_ParallelBitsDeposit_8_Asm;
-  fnParallelBitsDeposit16:  Result := @Var_ParallelBitsDeposit_16 = @Fce_ParallelBitsDeposit_16_Asm;
-  fnParallelBitsDeposit32:  Result := @Var_ParallelBitsDeposit_32 = @Fce_ParallelBitsDeposit_32_Asm;
-  fnParallelBitsDeposit64:  Result := @Var_ParallelBitsDeposit_64 = @Fce_ParallelBitsDeposit_64_Asm;
-else
-  raise EBOUnknownFunction.CreateFmt('Unknown function %d.',[Ord(Func)]);
-end;
+  imAssembly: FuncVarAddr^ := UIM_BITOPS_PASCAL_IMPL[Func];
 {$ENDIF}
-end;
-{$IFDEF FPCDWM}{$POP}{$ENDIF}
-
-//------------------------------------------------------------------------------
-
-procedure BitOpsFunctionPas(Func: TBitOpsFunctions);
-begin
-case Func of
-  fnPopCount8:              Var_PopCount_8 := Fce_PopCount_8_Pas;
-  fnPopCount16:             Var_PopCount_16 := Fce_PopCount_16_Pas;
-  fnPopCount32:             Var_PopCount_32 := Fce_PopCount_32_Pas;
-  fnPopCount64:             Var_PopCount_64 := Fce_PopCount_64_Pas;
-  fnLZCount8:               Var_LZCount_8 := Fce_LZCount_8_Pas;
-  fnLZCount16:              Var_LZCount_16 := Fce_LZCount_16_Pas;
-  fnLZCount32:              Var_LZCount_32 := Fce_LZCount_32_Pas;
-  fnLZCount64:              Var_LZCount_64 := Fce_LZCount_64_Pas;
-  fnTZCount8:               Var_TZCount_8 := Fce_TZCount_8_Pas;
-  fnTZCount16:              Var_TZCount_16 := Fce_TZCount_16_Pas;
-  fnTZCount32:              Var_TZCount_32 := Fce_TZCount_32_Pas;
-  fnTZCount64:              Var_TZCount_64 := Fce_TZCount_64_Pas;
-  fnExtractBits8:           Var_ExtractBits_8 := Fce_ExtractBits_8_Pas;
-  fnExtractBits16:          Var_ExtractBits_16 := Fce_ExtractBits_16_Pas;
-  fnExtractBits32:          Var_ExtractBits_32 := Fce_ExtractBits_32_Pas;
-  fnExtractBits64:          Var_ExtractBits_64 := Fce_ExtractBits_64_Pas;
-  fnParallelBitsExtract8:   Var_ParallelBitsExtract_8 := Fce_ParallelBitsExtract_8_Pas;
-  fnParallelBitsExtract16:  Var_ParallelBitsExtract_16 := Fce_ParallelBitsExtract_16_Pas;
-  fnParallelBitsExtract32:  Var_ParallelBitsExtract_32 := Fce_ParallelBitsExtract_32_Pas;
-  fnParallelBitsExtract64:  Var_ParallelBitsExtract_64 := Fce_ParallelBitsExtract_64_Pas;
-  fnParallelBitsDeposit8:   Var_ParallelBitsDeposit_8 := Fce_ParallelBitsDeposit_8_Pas;
-  fnParallelBitsDeposit16:  Var_ParallelBitsDeposit_16 := Fce_ParallelBitsDeposit_16_Pas;
-  fnParallelBitsDeposit32:  Var_ParallelBitsDeposit_32 := Fce_ParallelBitsDeposit_32_Pas;
-  fnParallelBitsDeposit64:  Var_ParallelBitsDeposit_64 := Fce_ParallelBitsDeposit_64_Pas;
 else
-  raise EBOUnknownFunction.CreateFmt('Unknown function %d.',[Ord(Func)]);
+ {imNone}
+  FuncVarAddr^ := nil;
 end;
 end;
-
-//------------------------------------------------------------------------------
-
-{$IFDEF FPCDWM}{$PUSH}W5024{$ENDIF}
-procedure BitOpsFunctionAsm(Func: TBitOpsFunctions);
-begin
-{$IFNDEF PurePascal}
-case Func of
-  fnPopCount8:              Var_PopCount_8 := Fce_PopCount_8_Asm;
-  fnPopCount16:             Var_PopCount_16 := Fce_PopCount_16_Asm;
-  fnPopCount32:             Var_PopCount_32 := Fce_PopCount_32_Asm;
-  fnPopCount64:             Var_PopCount_64 := Fce_PopCount_64_Asm;
-  fnLZCount8:               Var_LZCount_8 := Fce_LZCount_8_Asm;
-  fnLZCount16:              Var_LZCount_16 := Fce_LZCount_16_Asm;
-  fnLZCount32:              Var_LZCount_32 := Fce_LZCount_32_Asm;
-  fnLZCount64:              Var_LZCount_64 := Fce_LZCount_64_Asm;
-  fnTZCount8:               Var_TZCount_8 := Fce_TZCount_8_Asm;
-  fnTZCount16:              Var_TZCount_16 := Fce_TZCount_16_Asm;
-  fnTZCount32:              Var_TZCount_32 := Fce_TZCount_32_Asm;
-  fnTZCount64:              Var_TZCount_64 := Fce_TZCount_64_Asm;
-  fnExtractBits8:           Var_ExtractBits_8 := Fce_ExtractBits_8_Asm;
-  fnExtractBits16:          Var_ExtractBits_16 := Fce_ExtractBits_16_Asm;
-  fnExtractBits32:          Var_ExtractBits_32 := Fce_ExtractBits_32_Asm;
-  fnExtractBits64:          Var_ExtractBits_64 := Fce_ExtractBits_64_Asm;
-  fnParallelBitsExtract8:   Var_ParallelBitsExtract_8 := Fce_ParallelBitsExtract_8_Asm;
-  fnParallelBitsExtract16:  Var_ParallelBitsExtract_16 := Fce_ParallelBitsExtract_16_Asm;
-  fnParallelBitsExtract32:  Var_ParallelBitsExtract_32 := Fce_ParallelBitsExtract_32_Asm;
-  fnParallelBitsExtract64:  Var_ParallelBitsExtract_64 := Fce_ParallelBitsExtract_64_Asm;
-  fnParallelBitsDeposit8:   Var_ParallelBitsDeposit_8 := Fce_ParallelBitsDeposit_8_Asm;
-  fnParallelBitsDeposit16:  Var_ParallelBitsDeposit_16 := Fce_ParallelBitsDeposit_16_Asm;
-  fnParallelBitsDeposit32:  Var_ParallelBitsDeposit_32 := Fce_ParallelBitsDeposit_32_Asm;
-  fnParallelBitsDeposit64:  Var_ParallelBitsDeposit_64 := Fce_ParallelBitsDeposit_64_Asm;
-else
-  raise EBOUnknownFunction.CreateFmt('Unknown function %d.',[Ord(Func)]);
-end;
-{$ENDIF}
-end;
-{$IFDEF FPCDWM}{$POP}{$ENDIF}
-
-//------------------------------------------------------------------------------
-
-{$IFDEF FPCDWM}{$PUSH}W5024{$ENDIF}
-procedure BitOpsFunctionAssign(Func: TBitOpsFunctions; AssignASM: Boolean);
-begin
-{$IFNDEF PurePascal}
-If AssignASM then
-  BitOpsFunctionAsm(Func)
-else
-{$ENDIF}
-  BitOpsFunctionPas(Func);
-end;
-{$IFDEF FPCDWM}{$POP}{$ENDIF}
 
 {-------------------------------------------------------------------------------
 ================================================================================
@@ -6024,58 +6391,15 @@ end;
 ================================================================================
 -------------------------------------------------------------------------------}
 
-procedure LoadDefaultFunctions;
-var
-  i:  TBitOpsFunctions;
-begin
-For i := Low(TBitOpsFunctions) to High(TBitOpsFunctions) do
-  BitOpsFunctionPas(i);
-end;
-
-//------------------------------------------------------------------------------
-
 procedure Initialize;
+var
+  i:  TUIM_BitOps_Function;
 begin
-LoadDefaultFunctions;
-{$IF Defined(AllowASMExtensions) and not Defined(PurePascal)}
-  with TSimpleCPUID.Create do
-  try
-    // PopCount
-    BitOpsFunctionAssign(fnPopCount8,Info.SupportedExtensions.POPCNT);
-    BitOpsFunctionAssign(fnPopCount16,Info.SupportedExtensions.POPCNT);
-    BitOpsFunctionAssign(fnPopCount32,Info.SupportedExtensions.POPCNT);
-    BitOpsFunctionAssign(fnPopCount64,Info.SupportedExtensions.POPCNT);
-    // LZCount
-    BitOpsFunctionAssign(fnLZCount8,Info.ExtendedProcessorFeatures.LZCNT);
-    BitOpsFunctionAssign(fnLZCount16,Info.ExtendedProcessorFeatures.LZCNT);
-    BitOpsFunctionAssign(fnLZCount32,Info.ExtendedProcessorFeatures.LZCNT);
-    BitOpsFunctionAssign(fnLZCount64,Info.ExtendedProcessorFeatures.LZCNT);
-    // TZCount
-    BitOpsFunctionAssign(fnTZCount8,Info.ProcessorFeatures.BMI1);
-    BitOpsFunctionAssign(fnTZCount16,Info.ProcessorFeatures.BMI1);
-    BitOpsFunctionAssign(fnTZCount32,Info.ProcessorFeatures.BMI1);
-    BitOpsFunctionAssign(fnTZCount64,Info.ProcessorFeatures.BMI1);
-    // ExtractBits
-    BitOpsFunctionAssign(fnExtractBits8,Info.ProcessorFeatures.BMI1);
-    BitOpsFunctionAssign(fnExtractBits16,Info.ProcessorFeatures.BMI1);
-    BitOpsFunctionAssign(fnExtractBits32,Info.ProcessorFeatures.BMI1);
-    BitOpsFunctionAssign(fnExtractBits64,Info.ProcessorFeatures.BMI1);
-    // ParallelBitsExtract
-    BitOpsFunctionAssign(fnParallelBitsExtract8,Info.ProcessorFeatures.BMI2);
-    BitOpsFunctionAssign(fnParallelBitsExtract16,Info.ProcessorFeatures.BMI2);
-    BitOpsFunctionAssign(fnParallelBitsExtract32,Info.ProcessorFeatures.BMI2);
-    BitOpsFunctionAssign(fnParallelBitsExtract64,Info.ProcessorFeatures.BMI2
-      {$IFNDEF x64} and Info.SupportedExtensions.POPCNT{$ENDIF});
-    // ParallelBitsDeposit
-    BitOpsFunctionAssign(fnParallelBitsDeposit8,Info.ProcessorFeatures.BMI2);
-    BitOpsFunctionAssign(fnParallelBitsDeposit16,Info.ProcessorFeatures.BMI2);
-    BitOpsFunctionAssign(fnParallelBitsDeposit32,Info.ProcessorFeatures.BMI2);
-    BitOpsFunctionAssign(fnParallelBitsDeposit64,Info.ProcessorFeatures.BMI2
-      {$IFNDEF x64} and Info.SupportedExtensions.POPCNT and Info.ProcessorFeatures.CMOV{$ENDIF});
-  finally
-    Free;
-  end;
-{$IFEND}
+For i := Low(TUIM_BitOps_Function) to High(TUIM_BitOps_Function) do
+  If UIM_CheckASMSupport(i) then
+    UIM_BitOps_SetFuncImpl(i,imAssembly)
+  else
+    UIM_BitOps_SetFuncImpl(i,imPascal);
 end;
 
 //------------------------------------------------------------------------------
